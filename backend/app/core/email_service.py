@@ -192,6 +192,26 @@ def envoyer_email_reinitialisation(destinataire: str, prenom: str, reset_url: st
     return send_email(destinataire, subject, html, text)
 
 
+def envoyer_email_notification(
+    destinataire: str,
+    prenom: str,
+    sujet: str,
+    titre: str,
+    corps: str,
+    bouton_text: str = "",
+    bouton_url: str = "",
+) -> bool:
+    """Envoyer une notification de sécurité générique (non bloquante)."""
+    html = _template_notification(prenom, titre, corps, bouton_text, bouton_url)
+    text = (
+        f"Bonjour {prenom},\n\n"
+        f"{titre}\n\n"
+        f"{corps}\n\n"
+        f"-- Enterprise RH"
+    )
+    return send_email(destinataire, sujet, html, text)
+
+
 # ─── Templates HTML professionnels ─────────────────────────────────────
 
 def _base_template(title: str, body_html: str, button_text: str = "", button_url: str = "") -> str:
@@ -227,6 +247,17 @@ def _base_template(title: str, body_html: str, button_text: str = "", button_url
 </table>
 </td></tr></table>
 </body></html>"""
+
+
+def _template_notification(prenom: str, titre: str, corps: str, bouton_text: str = "", bouton_url: str = "") -> str:
+    """Template générique pour les notifications de sécurité."""
+    body = f"""
+    <p style="color:#334155;font-size:15px;line-height:1.6;">Bonjour <strong>{prenom}</strong>,</p>
+    <div style="background-color:#f8fafc;border:1px solid #e2e8f0;color:#334155;padding:16px;border-radius:8px;font-size:14px;line-height:1.6;margin-top:16px;">
+      <p style="margin:0 0 8px;font-weight:700;color:#4f46e5;font-size:14px;">{titre}</p>
+      <p style="margin:0;">{corps}</p>
+    </div>"""
+    return _base_template(titre, body, bouton_text, bouton_url)
 
 
 def _template_reset_password(prenom: str, reset_url: str) -> str:

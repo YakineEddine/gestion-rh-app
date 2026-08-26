@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
+import { Eye, EyeOff, Check, X } from 'lucide-react';
 import api from '../services/api';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
@@ -24,6 +25,7 @@ export default function EmployeForm() {
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (isEditMode) {
@@ -62,8 +64,19 @@ export default function EmployeForm() {
     } else if (!emailRegex.test(formData.email)) {
       tempErrors.email = "L'email n'est pas valide.";
     }
-    if (!isEditMode && (!formData.mot_de_passe || formData.mot_de_passe.length < 4)) {
-      tempErrors.mot_de_passe = 'Le mot de passe doit contenir au moins 4 caracteres.';
+    if (!isEditMode) {
+      const pwd = formData.mot_de_passe || '';
+      if (pwd.length < 8) {
+        tempErrors.mot_de_passe = 'Le mot de passe doit contenir au moins 8 caracteres.';
+      } else if (!/[A-Z]/.test(pwd)) {
+        tempErrors.mot_de_passe = 'Le mot de passe doit contenir au moins une majuscule.';
+      } else if (!/[a-z]/.test(pwd)) {
+        tempErrors.mot_de_passe = 'Le mot de passe doit contenir au moins une minuscule.';
+      } else if (!/[0-9]/.test(pwd)) {
+        tempErrors.mot_de_passe = 'Le mot de passe doit contenir au moins un chiffre.';
+      } else if (!/[^A-Za-z0-9]/.test(pwd)) {
+        tempErrors.mot_de_passe = 'Le mot de passe doit contenir au moins un caractere special.';
+      }
     }
     if (!formData.telephone.trim()) tempErrors.telephone = 'Le telephone est obligatoire.';
     if (!formData.departement) tempErrors.departement = 'Le departement est obligatoire.';
@@ -222,10 +235,46 @@ export default function EmployeForm() {
                   <div className="form-grid">
                     <div className="form-field-group">
                       <label htmlFor="mot_de_passe">Mot de passe temporaire *</label>
-                      <input id="mot_de_passe" type="password" name="mot_de_passe"
-                        value={formData.mot_de_passe} onChange={handleChange}
-                        className={errors.mot_de_passe ? 'input-error' : ''}
-                        placeholder="Minimum 4 caracteres" disabled={loading} />
+                      <div className="password-input-wrapper">
+                        <input
+                          id="mot_de_passe"
+                          type={showPassword ? 'text' : 'password'}
+                          name="mot_de_passe"
+                          value={formData.mot_de_passe}
+                          onChange={handleChange}
+                          className={errors.mot_de_passe ? 'input-error' : ''}
+                          placeholder="Min. 8 caractères, majuscule, minuscule, chiffre, spécial"
+                          disabled={loading}
+                        />
+                        <button
+                          type="button"
+                          className="password-toggle-btn"
+                          onClick={() => setShowPassword((v) => !v)}
+                          tabIndex={-1}
+                          aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                        >
+                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                      {!isEditMode && (
+                        <div className="password-rules small">
+                          {[
+                            { label: '8 caractères minimum', test: (v) => v.length >= 8 },
+                            { label: 'Une majuscule', test: (v) => /[A-Z]/.test(v) },
+                            { label: 'Une minuscule', test: (v) => /[a-z]/.test(v) },
+                            { label: 'Un chiffre', test: (v) => /[0-9]/.test(v) },
+                            { label: 'Un caractère spécial', test: (v) => /[^A-Za-z0-9]/.test(v) },
+                          ].map((rule, idx) => {
+                            const valid = rule.test(formData.mot_de_passe || '');
+                            return (
+                              <div key={idx} className={`password-rule ${valid ? 'valid' : ''}`}>
+                                {valid ? <Check size={12} /> : <X size={12} />}
+                                <span>{rule.label}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                       {errors.mot_de_passe && <span className="field-error-msg">{errors.mot_de_passe}</span>}
                     </div>
                   </div>

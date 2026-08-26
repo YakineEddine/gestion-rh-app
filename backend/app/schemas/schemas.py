@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional, List
 from datetime import date, datetime
 
@@ -14,8 +14,19 @@ class LoginRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     user: "UtilisateurResponse"
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
+class RefreshTokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -24,7 +35,16 @@ class ForgotPasswordRequest(BaseModel):
 
 class ResetPasswordRequest(BaseModel):
     token: str
-    nouveau_mot_de_passe: str = Field(..., min_length=4)
+    nouveau_mot_de_passe: str = Field(..., min_length=1)
+
+    @field_validator("nouveau_mot_de_passe")
+    @classmethod
+    def _valider_robustesse_mot_de_passe(cls, value: str) -> str:
+        from app.core.security import validate_password
+        ok, msg = validate_password(value)
+        if not ok:
+            raise ValueError(msg)
+        return value
 
 
 # ===== SCHÉMAS UTILISATEUR / EMPLOYÉ =====
@@ -33,7 +53,7 @@ class UtilisateurCreate(BaseModel):
     nom: str = Field(..., min_length=2, max_length=100)
     prenom: str = Field(..., min_length=2, max_length=100)
     email: str = Field(..., min_length=5)
-    mot_de_passe: str = Field(..., min_length=4)
+    mot_de_passe: str = Field(..., min_length=1)
     matricule: Optional[str] = None
     date_embauche: Optional[date] = None
     date_naissance: Optional[date] = None
@@ -41,6 +61,16 @@ class UtilisateurCreate(BaseModel):
     departement: Optional[str] = None
     poste: Optional[str] = None
     role: Optional[str] = "EMPLOYE"
+    est_actif: Optional[bool] = True
+
+    @field_validator("mot_de_passe")
+    @classmethod
+    def _valider_robustesse_mot_de_passe(cls, value: str) -> str:
+        from app.core.security import validate_password
+        ok, msg = validate_password(value)
+        if not ok:
+            raise ValueError(msg)
+        return value
 
 
 class UtilisateurUpdate(BaseModel):

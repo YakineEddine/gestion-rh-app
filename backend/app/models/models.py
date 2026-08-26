@@ -25,6 +25,10 @@ class AuditActionEnum(str, enum.Enum):
     LOGIN = "LOGIN"
     LOGIN_FAILED = "LOGIN_FAILED"
     LOGOUT = "LOGOUT"
+    PASSWORD_CHANGED = "PASSWORD_CHANGED"
+    PASSWORD_RESET = "PASSWORD_RESET"
+    ACCOUNT_LOCKED = "ACCOUNT_LOCKED"
+    ACCOUNT_UNLOCKED = "ACCOUNT_UNLOCKED"
     ACTIVATE = "ACTIVATE"
     DEACTIVATE = "DEACTIVATE"
     DOWNLOAD = "DOWNLOAD"
@@ -80,8 +84,14 @@ class Utilisateur(Base):
     departement = Column(String, nullable=True)
     poste = Column(String, nullable=True)
     role = Column(Enum(RoleEnum), default=RoleEnum.EMPLOYE)
+    est_actif = Column(Boolean, default=True, nullable=False)
+    login_attempts = Column(Integer, default=0, nullable=False)
+    locked_until = Column(DateTime, nullable=True)
+    last_failed_login = Column(DateTime, nullable=True)
 
     contrats = relationship("Contrat", back_populates="employe")
+    refresh_tokens = relationship("RefreshToken", back_populates="utilisateur", cascade="all, delete-orphan")
+    reset_tokens = relationship("ResetToken", back_populates="utilisateur", cascade="all, delete-orphan")
 
 
 class Contrat(Base):
@@ -111,6 +121,33 @@ class Article(Base):
     contenu_par_defaut = Column(Text, nullable=True)
     est_actif = Column(Boolean, default=True)
     modifie_le = Column(DateTime, nullable=True, default=datetime.utcnow)
+
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    utilisateur_id = Column(Integer, ForeignKey("utilisateurs.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash = Column(String, unique=True, index=True, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    revoked_at = Column(DateTime, nullable=True)
+    revoked = Column(Boolean, default=False, nullable=False)
+
+    utilisateur = relationship("Utilisateur", back_populates="refresh_tokens")
+
+
+class ResetToken(Base):
+    __tablename__ = "reset_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    utilisateur_id = Column(Integer, ForeignKey("utilisateurs.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash = Column(String, unique=True, index=True, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    utilisateur = relationship("Utilisateur", back_populates="reset_tokens")
 
 
 class AuditLog(Base):

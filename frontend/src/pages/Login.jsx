@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, AlertCircle, Lock, Loader2 } from 'lucide-react';
 import api from '../services/api';
 import './Login.css';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -16,6 +18,10 @@ export default function Login() {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSuccess, setForgotSuccess] = useState('');
   const [forgotError, setForgotError] = useState('');
+
+  const isLockedMessage = (msg) => {
+    return typeof msg === 'string' && msg.toLowerCase().includes('bloqué');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,18 +35,17 @@ export default function Login() {
       });
 
       localStorage.setItem('token', response.data.access_token);
+      localStorage.setItem('refresh_token', response.data.refresh_token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
-      
+
       if (response.data.user.role === 'RH') {
         navigate('/employes');
       } else {
         navigate('/mon-espace');
       }
     } catch (err) {
-      setError(
-        err.response?.data?.detail || 
-        'Connexion echouee. Veuillez verifier vos identifiants.'
-      );
+      const message = err.response?.data?.detail || 'Connexion échouée. Veuillez vérifier vos identifiants.';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -75,18 +80,23 @@ export default function Login() {
         <div className="visual-overlay"></div>
         <div className="visual-content">
           <h1>Gestion RH & Contrats</h1>
-          <p>La plateforme centralisee pour la gestion administrative et le suivi operationnel de vos collaborateurs.</p>
+          <p>La plateforme centralisée pour la gestion administrative et le suivi opérationnel de vos collaborateurs.</p>
         </div>
       </div>
-      
+
       <div className="login-form-side">
         <div className="login-card">
           <div className="login-header">
             <h2>Espace Connexion</h2>
-            <p>Connectez-vous pour acceder a votre espace</p>
+            <p>Connectez-vous pour accéder à votre espace</p>
           </div>
 
-          {error && <div className="login-error-alert">{error}</div>}
+          {error && (
+            <div className={`login-error-alert ${isLockedMessage(error) ? 'login-lockout-alert' : ''}`}>
+              <AlertCircle size={18} />
+              <span>{error}</span>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="login-form">
             <div className="form-group">
@@ -105,61 +115,80 @@ export default function Login() {
             <div className="form-group">
               <div className="label-with-link">
                 <label htmlFor="password">Mot de passe</label>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="forgot-password-link"
                   onClick={() => {
                     setForgotEmail(email);
                     setShowForgotModal(true);
                   }}
                 >
-                  Mot de passe oublie ?
+                  Mot de passe oublié ?
                 </button>
               </div>
-              <input
-                id="password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                disabled={loading}
-              />
+              <div className="password-input-wrapper">
+                <input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowPassword((v) => !v)}
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             <button type="submit" className="login-submit-btn" disabled={loading}>
-              {loading ? 'Connexion en cours...' : 'Se connecter'}
+              {loading ? (
+                <>
+                  <Loader2 size={18} className="spin-icon" /> Connexion en cours...
+                </>
+              ) : (
+                <>
+                  <Lock size={18} /> Se connecter
+                </>
+              )}
             </button>
           </form>
 
           <div className="login-footer">
-            <p>Compte de test RH : <strong>admin@rh.com</strong> / <strong>admin123</strong></p>
+            <p>Compte de test RH : <strong>admin@rh.com</strong> / <strong>Admin123!</strong></p>
           </div>
         </div>
       </div>
 
-      {/* Modale Mot de passe oublie */}
+      {/* Modale Mot de passe oublié */}
       {showForgotModal && (
         <div className="modal-overlay">
           <div className="modal-card">
             <div className="modal-header">
-              <h3>Reinitialisation du mot de passe</h3>
+              <h3>Réinitialisation du mot de passe</h3>
               <button className="close-modal-btn" onClick={closeForgotModal}>
                 &times;
               </button>
             </div>
-            
+
             <p className="modal-desc">
-              Saisissez votre adresse email. Un lien de reinitialisation sera envoye a votre boite de reception.
+              Saisissez votre adresse email. Un lien de réinitialisation sera envoyé à votre boîte de réception.
             </p>
 
             {forgotError && <div className="modal-alert error">{forgotError}</div>}
-            
+
             {forgotSuccess ? (
               <div className="modal-success-box">
                 <div className="modal-alert success">{forgotSuccess}</div>
                 <p className="modal-success-hint">
-                  Consultez votre boite de reception (et le dossier spam) pour trouver l'email de reinitialisation.
+                  Consultez votre boîte de réception (et le dossier spam) pour trouver l'email de réinitialisation.
                 </p>
                 <div className="modal-actions">
                   <button type="button" className="modal-submit-btn" onClick={closeForgotModal}>
