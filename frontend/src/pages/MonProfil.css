@@ -1,0 +1,186 @@
+/* ===== MESSAGE ===== */
+.profil-message {
+  padding: 14px 20px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.profil-message.success {
+  background-color: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  color: var(--success);
+}
+
+.profil-message.error {
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: var(--danger);
+}
+
+/* ===== CARTE PROFIL TOP ===== */
+.profil-top-card {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  background: linear-gradient(135deg, var(--primary) 0%, #06b6d4 100%);
+  border-radius: var(--radius-lg);
+  padding: 32px 40px;
+  color: white;
+}
+
+.profil-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.2);
+  border: 3px solid rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  font-weight: 700;
+  font-family: var(--font-heading);
+  flex-shrink: 0;
+}
+
+.profil-top-info {
+  flex: 1;
+}
+
+.profil-top-info h2 {
+  color: white;
+  font-size: 26px;
+  margin-bottom: 4px;
+}
+
+.profil-top-info p {
+  opacity: 0.9;
+  font-size: 15px;
+}
+
+.profil-matricule {
+  display: inline-block;
+  margin-top: 6px;
+  background-color: rgba(255, 255, 255, 0.2);
+  padding: 4px 12px;
+  border-radius: 50px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.edit-profil-btn {
+  background-color: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: white;
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.2s ease;
+}
+
+.edit-profil-btn:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+/* ===== DETAILS ===== */
+.profil-details {
+  text-align: left;
+}
+
+.profil-details h3 {
+  font-size: 18px;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.profil-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 600px) {
+  .profil-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.profil-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profil-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.profil-field p {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.profil-field input {
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 14px;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+}
+
+.profil-field input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+/* ===== EDIT ACTIONS ===== */
+.profil-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.cancel-edit-btn {
+  padding: 10px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.save-edit-btn {
+  padding: 10px 20px;
+  background-color: var(--primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: white;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.save-edit-btn:hover {
+  background-color: var(--primary-hover);
+}
+
+.save-edit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

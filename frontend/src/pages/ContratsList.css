@@ -1,0 +1,285 @@
+/* ===== STATS GRID ===== */
+.contrats-stats {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 1200px) {
+  .contrats-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ===== FILTERS BAR ===== */
+.contrats-filters-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid #f1f5f9;
+  flex-wrap: wrap;
+}
+
+.contrats-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.contrats-filter-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.contrats-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.contrats-search-icon {
+  position: absolute;
+  left: 12px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.contrats-search-input {
+  height: 40px;
+  width: 260px;
+  padding: 0 14px 0 36px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 14px;
+  color: #1e293b;
+  background: #f8fafc;
+  transition: all 0.15s ease;
+}
+
+.contrats-search-input:focus {
+  outline: none;
+  border-color: #4f46e5;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.contrats-filter-select {
+  height: 40px;
+  padding: 0 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 14px;
+  color: #1e293b;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 140px;
+}
+
+.contrats-filter-select:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.contrats-filter-actions {
+  margin-left: auto;
+}
+
+.contrats-add-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 20px;
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  border: none;
+  border-radius: 10px;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.contrats-add-btn:hover {
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+  transform: translateY(-1px);
+}
+
+/* ===== TABLE CELLS ===== */
+.contrat-ref-badge {
+  display: inline-block;
+  background-color: #eff6ff;
+  color: #2563eb;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.contrat-employe-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.contrat-employe-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.contrat-employe-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+
+.contrat-employe-nom {
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.contrat-employe-matricule {
+  font-size: 12px;
+  color: #64748b;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.contrat-date-cell {
+  white-space: nowrap;
+}
+
+.contrat-date-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #475569;
+  font-size: 13px;
+}
+
+.contrat-date-icon {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.contrat-indefini {
+  font-size: 13px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.contrat-salaire-cell {
+  font-weight: 600;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ===== STATUT BADGES ===== */
+.contrat-statut-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.contrat-statut-badge.statut-brouillon {
+  background-color: #f1f5f9;
+  color: #475569;
+}
+
+.contrat-statut-badge.statut-actif {
+  background-color: #dcfce7;
+  color: #15803d;
+}
+
+.contrat-statut-badge.statut-suspendu {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.contrat-statut-badge.statut-termine {
+  background-color: #dbeafe;
+  color: #1d4ed8;
+}
+
+/* ===== BOUTON GENERER WORD ===== */
+.action-circle-btn-word {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid #ddd6fe;
+  background-color: #ffffff;
+  color: #7c3aed;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.action-circle-btn-word:hover:not(:disabled) {
+  background-color: #f5f3ff;
+  border-color: #7c3aed;
+}
+
+.action-circle-btn-word:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@keyframes cl-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.cl-spin {
+  animation: cl-spin 0.8s linear infinite;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 1100px) {
+  .contrats-search-input {
+    width: 180px;
+  }
+}
+
+@media (max-width: 900px) {
+  .contrats-filters-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .contrats-filter-actions {
+    margin-left: 0;
+  }
+  .contrats-add-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .contrats-search-input {
+    width: 100%;
+  }
+}

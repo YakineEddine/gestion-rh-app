@@ -1,0 +1,164 @@
+.form-card-wrapper {
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.form-card-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.back-link {
+  font-size: 14px;
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.back-link:hover {
+  text-decoration: underline;
+}
+
+.form-info-banner {
+  background-color: var(--primary-light);
+  color: var(--primary);
+  padding: 14px 20px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  margin-bottom: 24px;
+  border: 1px solid rgba(79, 70, 229, 0.15);
+}
+
+.form-server-error {
+  background-color: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: var(--danger);
+  padding: 14px 20px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.custom-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.form-section-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-top: 8px;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.form-grid-3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+@media (max-width: 768px) {
+  .form-grid, .form-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.form-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-field-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.form-field-group input,
+.form-field-group select {
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 14px;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.form-field-group input:focus,
+.form-field-group select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+.form-field-group input.input-error,
+.form-field-group select.input-error {
+  border-color: var(--danger);
+  background-color: rgba(239, 68, 68, 0.02);
+}
+
+.field-error-msg {
+  font-size: 12px;
+  color: var(--danger);
+  font-weight: 500;
+}
+
+.form-submit-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+  margin-top: 8px;
+}
+
+.cancel-btn {
+  padding: 12px 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-muted);
+  cursor: pointer;
+  background: var(--bg-card);
+  transition: all 0.2s ease;
+}
+
+.cancel-btn:hover {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+}
+
+.save-btn {
+  padding: 12px 28px;
+  background-color: var(--primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 14px;
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.save-btn:hover {
+  background-color: var(--primary-hover);
+}
+
+.save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
