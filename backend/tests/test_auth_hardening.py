@@ -30,7 +30,17 @@ from app.models.models import (
     Utilisateur,
 )
 
-TEST_DB_URL = "postgresql://postgres:postgres@localhost:5432/gestion_rh_test_db"
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+DB_USER = os.getenv("DB_USER", "postgres")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = os.getenv("DB_PORT", "5432")
+
+TEST_DB_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/gestion_rh_test_db"
 
 test_engine = create_engine(TEST_DB_URL)
 TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
