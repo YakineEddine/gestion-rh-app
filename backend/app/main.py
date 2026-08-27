@@ -9,6 +9,7 @@ from app.routes.articles import router as articles_router
 from app.routes.contrats import router as contrats_router
 from app.routes.audit import router as audit_router
 from app.routes.ai import router as ai_router
+from app.routes.notifications import router as notifications_router
 
 # Créer les tables de la base de données
 Base.metadata.create_all(bind=engine)
@@ -45,6 +46,7 @@ app.include_router(articles_router)
 app.include_router(contrats_router)
 app.include_router(audit_router)
 app.include_router(ai_router)
+app.include_router(notifications_router)
 
 # Route de test
 @app.get("/")
