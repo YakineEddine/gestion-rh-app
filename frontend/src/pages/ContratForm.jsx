@@ -10,7 +10,14 @@ import Header from '../components/Header';
 import api from '../services/api';
 import './ContratForm.css';
 
-const STATUTS = ['Brouillon', 'Actif', 'Suspendu', 'Terminé'];
+const ALLOWED_STATUS_TRANSITIONS = {
+  'Brouillon': ['Brouillon', 'Actif'],
+  'Actif':     ['Actif', 'Suspendu', 'Terminé'],
+  'Suspendu':  ['Suspendu', 'Actif', 'Terminé'],
+  'Terminé':   ['Terminé'],
+  'Expiré':    ['Expiré'],
+};
+
 const TYPES_CONTRAT = ['CDI', 'CDD', 'STAGE', 'ALTERNANCE'];
 
 const STEPS = [
@@ -35,11 +42,12 @@ export default function ContratForm() {
   const [selectedEmploye, setSelectedEmploye] = useState(null);
 
   // Step 2 — Informations
-  const [typeContrat, setTypeContrat] = useState('');
-  const [dateDebut, setDateDebut]     = useState('');
-  const [dateFin, setDateFin]         = useState('');
-  const [salaire, setSalaire]         = useState('');
-  const [statut, setStatut]           = useState('Brouillon');
+  const [typeContrat, setTypeContrat]     = useState('');
+  const [dateDebut, setDateDebut]         = useState('');
+  const [dateFin, setDateFin]             = useState('');
+  const [salaire, setSalaire]             = useState('');
+  const [statut, setStatut]               = useState('Brouillon');
+  const [initialStatut, setInitialStatut] = useState('Brouillon');
 
   // Step 3 — Articles
   const [articles, setArticles]           = useState([]);
@@ -88,6 +96,7 @@ export default function ContratForm() {
       setDateFin(c.date_fin || '');
       setSalaire(String(c.salaire_mensuel || ''));
       setStatut(c.statut || 'Brouillon');
+      setInitialStatut(c.statut || 'Brouillon');
       setSelectedArticleIds((c.articles || []).map(a => a.id));
       if (c.employe) setSelectedEmploye(c.employe);
     } catch {
@@ -386,18 +395,28 @@ export default function ContratForm() {
                     />
                   </div>
 
-                  {isEdit && (
-                    <div className="cf-form-group">
-                      <label className="cf-label">Statut du contrat</label>
-                      <select
-                        value={statut}
-                        onChange={e => setStatut(e.target.value)}
-                        className="cf-input"
-                      >
-                        {STATUTS.map(s => <option key={s}>{s}</option>)}
-                      </select>
-                    </div>
-                  )}
+                  {isEdit && (() => {
+                    const availableStatuts = ALLOWED_STATUS_TRANSITIONS[initialStatut] || [statut];
+                    const isFinal = availableStatuts.length <= 1;
+                    return (
+                      <div className="cf-form-group">
+                        <label className="cf-label">Statut du contrat</label>
+                        <select
+                          value={statut}
+                          onChange={e => setStatut(e.target.value)}
+                          className="cf-input"
+                          disabled={isFinal}
+                        >
+                          {availableStatuts.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        {isFinal && (
+                          <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                            Statut final — aucune modification ultérieure possible.
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {!validateStep(2) && (

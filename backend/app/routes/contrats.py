@@ -167,6 +167,21 @@ def create_contrat(
     return contrat
 
 
+# Transitions de statut autorisées selon les règles métier :
+# - Brouillon -> Actif
+# - Actif -> Suspendu, Terminé (retour à Brouillon STRICTEMENT INTERDIT)
+# - Suspendu -> Actif, Terminé (retour à Brouillon STRICTEMENT INTERDIT)
+# - Terminé -> Statut final, aucune transition sortante autorisée
+# - Expiré -> Statut final, aucune transition sortante autorisée
+TRANSITIONS_STATUT_AUTORISEES = {
+    "Brouillon": ["Brouillon", "Actif"],
+    "Actif": ["Actif", "Suspendu", "Terminé"],
+    "Suspendu": ["Suspendu", "Actif", "Terminé"],
+    "Terminé": ["Terminé"],
+    "Expiré": ["Expiré"],
+}
+
+
 @router.put("/{contrat_id}", response_model=ContratResponse)
 def update_contrat(
     contrat_id: int,
@@ -190,6 +205,18 @@ def update_contrat(
 
     update_data = data.model_dump(exclude_unset=True)
 
+    # Validation stricte des transitions de statut
+    if "statut" in update_data and update_data["statut"] is not None:
+        nouveau_statut = update_data["statut"]
+        statut_actuel = contrat.statut or "Brouillon"
+        autorises = TRANSITIONS_STATUT_AUTORISEES.get(statut_actuel, [statut_actuel])
+        if nouveau_statut not in autorises:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Transition de statut non autorisée : impossible de passer de '{statut_actuel}' à '{nouveau_statut}'."
+            )
+        contrat.statut = nouveau_statut
+
     if "type_contrat" in update_data and update_data["type_contrat"] is not None:
         tc = update_data["type_contrat"]
         contrat.type_contrat = tc.value if hasattr(tc, "value") else tc
@@ -199,8 +226,6 @@ def update_contrat(
         contrat.date_fin = update_data["date_fin"]
     if "salaire_mensuel" in update_data and update_data["salaire_mensuel"] is not None:
         contrat.salaire_mensuel = update_data["salaire_mensuel"]
-    if "statut" in update_data and update_data["statut"] is not None:
-        contrat.statut = update_data["statut"]
     if "article_ids" in update_data:
         ids = update_data["article_ids"] or []
         contrat.articles = db.query(Article).filter(Article.id.in_(ids)).all() if ids else []
