@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models.models import Utilisateur, Contrat, AuditActionEnum, AuditEntiteEnum
 from app.schemas.schemas import UtilisateurResponse, UtilisateurUpdate, ContratResponse
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_any_role
 from app.core.document_generator import generer_contrat_word
 from app.core.audit_service import log_action
 
@@ -34,9 +34,12 @@ def get_mon_profil(current_user: Utilisateur = Depends(get_current_user)):
 def modifier_mon_profil(
     data: UtilisateurUpdate,
     db: Session = Depends(get_db),
-    current_user: Utilisateur = Depends(get_current_user)
+    current_user: Utilisateur = Depends(require_any_role("RH", "ADMIN"))
 ):
-    """Modifier certaines informations du profil (telephone, email)."""
+    """
+    Seuls les administrateurs et RH sont autorises a modifier les coordonnees.
+    Un utilisateur avec le role EMPLOYE recoit un refus HTTP 403 Forbidden.
+    """
     # L'employe ne peut modifier que des champs limites
     if data.telephone is not None:
         current_user.telephone = data.telephone

@@ -8,7 +8,7 @@ import string
 from app.database import get_db
 from app.models.models import Utilisateur, RoleEnum, AuditActionEnum, AuditEntiteEnum
 from app.schemas.schemas import UtilisateurCreate, UtilisateurUpdate, UtilisateurResponse
-from app.core.security import hash_password, get_current_user, require_role
+from app.core.security import hash_password, get_current_user, require_any_role
 from app.core.audit_service import log_action, diff_valeurs
 
 router = APIRouter(prefix="/api/employes", tags=["Employés"])
@@ -44,7 +44,7 @@ def to_response(emp: Utilisateur) -> UtilisateurResponse:
 @router.get("/", response_model=List[UtilisateurResponse])
 def lister_employes(
     db: Session = Depends(get_db),
-    current_user: Utilisateur = Depends(require_role("RH"))
+    current_user: Utilisateur = Depends(require_any_role("RH", "ADMIN"))
 ):
     employes = db.query(Utilisateur).all()
     return [to_response(emp) for emp in employes]
@@ -54,7 +54,7 @@ def lister_employes(
 def lire_employe(
     employe_id: int,
     db: Session = Depends(get_db),
-    current_user: Utilisateur = Depends(require_role("RH"))
+    current_user: Utilisateur = Depends(require_any_role("RH", "ADMIN"))
 ):
     employe = db.query(Utilisateur).filter(Utilisateur.id == employe_id).first()
     if not employe:
@@ -67,7 +67,7 @@ def creer_employe(
     employe: UtilisateurCreate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Utilisateur = Depends(require_role("RH"))
+    current_user: Utilisateur = Depends(require_any_role("RH", "ADMIN"))
 ):
     existing = db.query(Utilisateur).filter(Utilisateur.email == employe.email).first()
     if existing:
@@ -120,7 +120,7 @@ def modifier_employe(
     employe_data: UtilisateurUpdate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Utilisateur = Depends(require_role("RH"))
+    current_user: Utilisateur = Depends(require_any_role("RH", "ADMIN"))
 ):
     employe = db.query(Utilisateur).filter(Utilisateur.id == employe_id).first()
     if not employe:
@@ -190,7 +190,7 @@ def supprimer_employe(
     employe_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: Utilisateur = Depends(require_role("RH"))
+    current_user: Utilisateur = Depends(require_any_role("RH", "ADMIN"))
 ):
     employe = db.query(Utilisateur).filter(Utilisateur.id == employe_id).first()
     if not employe:
