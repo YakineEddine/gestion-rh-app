@@ -34,6 +34,8 @@ from app.core.email_service import (
     send_email,
     template_contract_expiring,
     template_contract_expired,
+    template_contract_expiring_employe,
+    template_contract_expired_employe,
 )
 
 # Seuils d'alerte pour l'expiration d'un contrat (en jours restants avant date_fin)
@@ -139,18 +141,25 @@ def verifier_alertes_contrats(db: Session) -> int:
     for contrat in contrats_a_echeance:
         jours_restants = (contrat.date_fin - aujourdhui).days
 
+        # Employé lié au contrat (pour alertes personnelles employé)
+        employe_user = None
+        if contrat.employe_id and contrat.statut != "Brouillon":
+            employe_user = db.query(Utilisateur).filter(Utilisateur.id == contrat.employe_id).first()
+
         if jours_restants < 0:
-            titre = f"Contrat {contrat.reference} expiré"
-            message = (
+            titre_rh = f"Contrat {contrat.reference} expiré"
+            message_rh = (
                 f"Le contrat {contrat.reference} est arrivé à expiration "
                 f"le {contrat.date_fin.strftime('%d/%m/%Y')}."
             )
             cree_pour_qqun = False
+
+            # 1. Alerte RH
             for dest in destinataires:
                 notif = _creer_si_absente(
                     db, dest.id,
                     NotificationTypeEnum.CONTRACT_EXPIRED.value,
-                    titre, message, NotificationPrioriteEnum.CRITICAL.value,
+                    titre_rh, message_rh, NotificationPrioriteEnum.CRITICAL.value,
                     AuditEntiteEnum.CONTRAT.value, contrat.id,
                     dedup_key=f"CONTRACT_EXPIRED:CONTRAT:{contrat.id}:{dest.id}",
                 )
@@ -166,7 +175,7 @@ def verifier_alertes_contrats(db: Session) -> int:
                         )
                         email_ok = send_email(
                             to=dest.email,
-                            subject=f"[Alerte RH] {titre}",
+                            subject=f"[Alerte RH] {titre_rh}",
                             html_content=html,
                         )
                         if email_ok:
@@ -176,12 +185,51 @@ def verifier_alertes_contrats(db: Session) -> int:
                                 entite=AuditEntiteEnum.CONTRAT.value, entite_id=contrat.id,
                                 description=f"Email d'expiration envoyé à {dest.email} pour le contrat {contrat.reference}",
                             )
+
+            # 2. Alerte Employé personnel (si non-brouillon)
+            if employe_user:
+                titre_emp = f"Contrat {contrat.reference} expiré"
+                message_emp = (
+                    f"Votre contrat {contrat.reference} est arrivé à expiration "
+                    f"le {contrat.date_fin.strftime('%d/%m/%Y')}."
+                )
+                notif_emp = _creer_si_absente(
+                    db, employe_user.id,
+                    NotificationTypeEnum.CONTRACT_EXPIRED.value,
+                    titre_emp, message_emp, NotificationPrioriteEnum.CRITICAL.value,
+                    AuditEntiteEnum.CONTRAT.value, contrat.id,
+                    dedup_key=f"CONTRACT_EXPIRED:CONTRAT:{contrat.id}:{employe_user.id}",
+                )
+                if notif_emp:
+                    total_creees += 1
+                    cree_pour_qqun = True
+                    # Envoi email employé
+                    if employe_user.email:
+                        html_emp = template_contract_expired_employe(
+                            prenom=employe_user.prenom,
+                            nom=employe_user.nom,
+                            reference=contrat.reference,
+                            date_fin=contrat.date_fin.strftime('%d/%m/%Y'),
+                        )
+                        email_ok = send_email(
+                            to=employe_user.email,
+                            subject="Votre contrat est arrivé à expiration",
+                            html_content=html_emp,
+                        )
+                        if email_ok:
+                            log_action(
+                                db=db, utilisateur_id=employe_user.id,
+                                action=AuditActionEnum.EMAIL_SENT.value,
+                                entite=AuditEntiteEnum.CONTRAT.value, entite_id=contrat.id,
+                                description=f"Email d'expiration envoyé à l'employé {employe_user.email} pour le contrat {contrat.reference}",
+                            )
+
             if cree_pour_qqun:
                 log_action(
                     db=db, utilisateur_id=None,
                     action=AuditActionEnum.ALERT_GENERATED.value,
                     entite=AuditEntiteEnum.CONTRAT.value, entite_id=contrat.id,
-                    description=titre,
+                    description=titre_rh,
                 )
         else:
             # Trouver le seuil le plus serré qui s'applique.
@@ -197,18 +245,17 @@ def verifier_alertes_contrats(db: Session) -> int:
                     NotificationPrioriteEnum.CRITICAL.value
                     if seuil_applicable <= 7 else NotificationPrioriteEnum.WARNING.value
                 )
-                titre = f"Contrat {contrat.reference} bientôt expiré"
-                message = (
+                titre_rh = f"Contrat {contrat.reference} bientôt expiré"
+                message_rh = (
                     f"Ce contrat expire dans {jours_restants} jour(s) "
                     f"(le {contrat.date_fin.strftime('%d/%m/%Y')})."
                 )
                 cree_pour_qqun = False
+
+                # 1. Alerte RH
                 for dest in destinataires:
-                    # dedup_key SANS le seuil → une seule notif par contrat/destinataire
                     dedup_base = f"CONTRACT_EXPIRING:CONTRAT:{contrat.id}:{dest.id}"
 
-                    # Supprimer les anciennes notifs avec l'ancien format J{seuil}
-                    # pour éviter les doublons résiduels de la version précédente
                     anciennes = db.query(Notification).filter(
                         Notification.dedup_key.like(f"CONTRACT_EXPIRING:CONTRAT:{contrat.id}:J%:{dest.id}")
                     ).all()
@@ -217,21 +264,18 @@ def verifier_alertes_contrats(db: Session) -> int:
                     if anciennes:
                         db.commit()
 
-                    # Vérifier si une notif existe déjà avec la nouvelle clé
                     existante = db.query(Notification).filter(
                         Notification.dedup_key == dedup_base
                     ).first()
 
                     should_send_email = False
                     if existante:
-                        # Mettre à jour si la priorité ou le message a changé
-                        if existante.priorite != priorite or existante.message != message:
-                            # Escalade (ex: passage à CRITICAL) -> nouvel email justifié
+                        if existante.priorite != priorite or existante.message != message_rh:
                             if existante.priorite != priorite:
                                 should_send_email = True
                             existante.priorite = priorite
-                            existante.titre = titre
-                            existante.message = message
+                            existante.titre = titre_rh
+                            existante.message = message_rh
                             existante.est_lue = False
                             existante.date_creation = datetime.utcnow()
                             existante.date_lecture = None
@@ -241,7 +285,7 @@ def verifier_alertes_contrats(db: Session) -> int:
                         notif = _creer_si_absente(
                             db, dest.id,
                             NotificationTypeEnum.CONTRACT_EXPIRING.value,
-                            titre, message, priorite,
+                            titre_rh, message_rh, priorite,
                             AuditEntiteEnum.CONTRAT.value, contrat.id,
                             dedup_key=dedup_base,
                             date_expiration=datetime.combine(contrat.date_fin, datetime.min.time()),
@@ -251,7 +295,6 @@ def verifier_alertes_contrats(db: Session) -> int:
                             cree_pour_qqun = True
                             should_send_email = True
 
-                    # Envoi d'email sécurisé et dédupliqué
                     if should_send_email and dest.email:
                         html = template_contract_expiring(
                             prenom=dest.prenom,
@@ -262,7 +305,7 @@ def verifier_alertes_contrats(db: Session) -> int:
                         )
                         email_ok = send_email(
                             to=dest.email,
-                            subject=f"[Alerte RH - {priorite}] {titre}",
+                            subject=f"[Alerte RH - {priorite}] {titre_rh}",
                             html_content=html,
                         )
                         if email_ok:
@@ -273,12 +316,82 @@ def verifier_alertes_contrats(db: Session) -> int:
                                 description=f"Email d'alerte ({priorite}) envoyé à {dest.email} pour le contrat {contrat.reference}",
                             )
 
+                # 2. Alerte Employé personnel (si non-brouillon)
+                if employe_user:
+                    dedup_base_emp = f"CONTRACT_EXPIRING:CONTRAT:{contrat.id}:{employe_user.id}"
+                    titre_emp = f"Contrat {contrat.reference} bientôt expiré"
+                    message_emp = (
+                        f"Votre contrat {contrat.reference} arrive à expiration dans {jours_restants} jour(s) "
+                        f"(le {contrat.date_fin.strftime('%d/%m/%Y')})."
+                    )
+
+                    anciennes_emp = db.query(Notification).filter(
+                        Notification.dedup_key.like(f"CONTRACT_EXPIRING:CONTRAT:{contrat.id}:J%:{employe_user.id}")
+                    ).all()
+                    for anc in anciennes_emp:
+                        db.delete(anc)
+                    if anciennes_emp:
+                        db.commit()
+
+                    existante_emp = db.query(Notification).filter(
+                        Notification.dedup_key == dedup_base_emp
+                    ).first()
+
+                    should_send_email_emp = False
+                    if existante_emp:
+                        if existante_emp.priorite != priorite or existante_emp.message != message_emp:
+                            if existante_emp.priorite != priorite:
+                                should_send_email_emp = True
+                            existante_emp.priorite = priorite
+                            existante_emp.titre = titre_emp
+                            existante_emp.message = message_emp
+                            existante_emp.est_lue = False
+                            existante_emp.date_creation = datetime.utcnow()
+                            existante_emp.date_lecture = None
+                            db.commit()
+                            cree_pour_qqun = True
+                    else:
+                        notif_emp = _creer_si_absente(
+                            db, employe_user.id,
+                            NotificationTypeEnum.CONTRACT_EXPIRING.value,
+                            titre_emp, message_emp, priorite,
+                            AuditEntiteEnum.CONTRAT.value, contrat.id,
+                            dedup_key=dedup_base_emp,
+                            date_expiration=datetime.combine(contrat.date_fin, datetime.min.time()),
+                        )
+                        if notif_emp:
+                            total_creees += 1
+                            cree_pour_qqun = True
+                            should_send_email_emp = True
+
+                    if should_send_email_emp and employe_user.email:
+                        html_emp = template_contract_expiring_employe(
+                            prenom=employe_user.prenom,
+                            nom=employe_user.nom,
+                            reference=contrat.reference,
+                            date_fin=contrat.date_fin.strftime('%d/%m/%Y'),
+                            jours_restants=jours_restants,
+                            priorite=priorite,
+                        )
+                        email_ok = send_email(
+                            to=employe_user.email,
+                            subject="Votre contrat arrive bientôt à expiration",
+                            html_content=html_emp,
+                        )
+                        if email_ok:
+                            log_action(
+                                db=db, utilisateur_id=employe_user.id,
+                                action=AuditActionEnum.EMAIL_SENT.value,
+                                entite=AuditEntiteEnum.CONTRAT.value, entite_id=contrat.id,
+                                description=f"Email d'alerte expiration ({priorite}) envoyé à l'employé {employe_user.email} pour le contrat {contrat.reference}",
+                            )
+
                 if cree_pour_qqun:
                     log_action(
                         db=db, utilisateur_id=None,
                         action=AuditActionEnum.ALERT_GENERATED.value,
                         entite=AuditEntiteEnum.CONTRAT.value, entite_id=contrat.id,
-                        description=titre,
+                        description=titre_rh,
                     )
 
     # ─── Contrats restes en "Brouillon" depuis trop longtemps ───

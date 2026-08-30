@@ -1,12 +1,27 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, User, FileText, ChevronDown, LogOut } from 'lucide-react';
+import { Home, User, FileText, Bell, ChevronDown, LogOut } from 'lucide-react';
 import api from '../services/api';
 import './Sidebar.css';
 
 export default function EmployeeSidebar() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const res = await api.get('/notifications/unread-count');
+        setUnreadCount(res.data.unread_count || 0);
+      } catch {
+        // silencieux
+      }
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -55,6 +70,17 @@ export default function EmployeeSidebar() {
         >
           <FileText size={18} className="nav-icon-lucide" />
           <span className="nav-text">Mes Contrats</span>
+        </NavLink>
+
+        <NavLink
+          to="/mon-espace/alertes"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <Bell size={18} className="nav-icon-lucide" />
+          <span className="nav-text">Alertes</span>
+          {unreadCount > 0 && (
+            <span className="sidebar-nav-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
+          )}
         </NavLink>
       </nav>
 

@@ -333,3 +333,40 @@ def template_contract_status_change(prenom: str, reference: str, ancien_statut: 
       </p>
     </div>"""
     return _base_template("Changement de statut de contrat", body, "Voir le contrat", f"{APP_URL}/contrats")
+
+
+def template_contract_expiring_employe(
+    prenom: str, nom: str, reference: str, date_fin: str, jours_restants: int, priorite: str
+) -> str:
+    """Template pour informer un employe que son contrat arrive a expiration."""
+    color = "#dc2626" if priorite == "CRITICAL" else "#d97706"
+    label = "CRITIQUE" if priorite == "CRITICAL" else "ATTENTION"
+    body = f"""
+    <p style="color:#334155;font-size:15px;line-height:1.6;">Bonjour <strong>{prenom} {nom}</strong>,</p>
+    <div style="background-color:{'#fef2f2' if priorite == 'CRITICAL' else '#fffbeb'};border-left:4px solid {color};padding:16px;border-radius:0 8px 8px 0;margin:16px 0;">
+      <p style="margin:0 0 4px;font-weight:700;color:{color};font-size:13px;">{label} — EXPIRATION PROCHAINE</p>
+      <p style="margin:0;color:#334155;font-size:15px;">
+        Votre contrat <strong>{reference}</strong> arrive à échéance le <strong>{date_fin}</strong>.
+      </p>
+      <p style="margin:6px 0 0;color:#64748b;font-size:14px;">
+        Il reste <strong>{jours_restants} jour(s)</strong> avant son expiration.
+      </p>
+    </div>
+    <p style="color:#64748b;font-size:14px;">Vous pouvez consulter les détails de votre contrat depuis votre espace personnel.</p>"""
+    return _base_template("Votre contrat arrive bientôt à expiration", body, "Consulter mon contrat", f"{APP_URL}/mon-espace/contrats")
+
+
+def template_contract_expired_employe(
+    prenom: str, nom: str, reference: str, date_fin: str
+) -> str:
+    """Template pour informer un employe que son contrat est arrive a expiration."""
+    body = f"""
+    <p style="color:#334155;font-size:15px;line-height:1.6;">Bonjour <strong>{prenom} {nom}</strong>,</p>
+    <div style="background-color:#fef2f2;border-left:4px solid #dc2626;padding:16px;border-radius:0 8px 8px 0;margin:16px 0;">
+      <p style="margin:0 0 4px;font-weight:700;color:#dc2626;font-size:13px;">CONTRAT EXPIRÉ</p>
+      <p style="margin:0;color:#334155;font-size:15px;">
+        Votre contrat <strong>{reference}</strong> est arrivé à expiration le <strong>{date_fin}</strong>.
+      </p>
+    </div>
+    <p style="color:#64748b;font-size:14px;">Vous pouvez consulter votre historique de contrats depuis votre espace personnel.</p>"""
+    return _base_template("Votre contrat est arrivé à expiration", body, "Consulter mon contrat", f"{APP_URL}/mon-espace/contrats")

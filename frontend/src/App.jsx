@@ -6,6 +6,7 @@ import EmployeForm from './pages/EmployeForm';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import MonProfil from './pages/MonProfil';
 import MesContrats from './pages/MesContrats';
+import EmployeeAlertes from './pages/EmployeeAlertes';
 import ResetPassword from './pages/ResetPassword';
 import ArticlesList from './pages/ArticlesList';
 import ContratsList from './pages/ContratsList';
@@ -74,6 +75,7 @@ function App() {
         <Route path="/mon-espace" element={<PrivateRoute><EmployeeDashboard /></PrivateRoute>} />
         <Route path="/mon-espace/profil" element={<PrivateRoute><MonProfil /></PrivateRoute>} />
         <Route path="/mon-espace/contrats" element={<PrivateRoute><MesContrats /></PrivateRoute>} />
+        <Route path="/mon-espace/alertes" element={<PrivateRoute><EmployeeAlertes /></PrivateRoute>} />
 
         {/* Redirections */}
         <Route path="/" element={<SmartRedirect />} />

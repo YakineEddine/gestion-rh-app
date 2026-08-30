@@ -90,12 +90,15 @@ export default function Header({ title, subtitle }) {
       // Non bloquant : la navigation doit fonctionner meme si le marquage echoue.
     }
     setShowDropdown(false);
-    if (notif.entite === 'CONTRAT' && notif.entite_id) {
-      navigate(`/contrats/modifier/${notif.entite_id}`);
-    } else if (notif.entite === 'EMPLOYE' && notif.entite_id) {
-      navigate(`/employes/modifier/${notif.entite_id}`);
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const isEmploye = user.role === 'EMPLOYE';
+
+    if (notif.entite === 'CONTRAT') {
+      navigate(isEmploye ? '/mon-espace/contrats' : `/contrats/modifier/${notif.entite_id}`);
+    } else if (notif.entite === 'EMPLOYE') {
+      navigate(isEmploye ? '/mon-espace/profil' : `/employes/modifier/${notif.entite_id}`);
     } else {
-      navigate('/alertes');
+      navigate(isEmploye ? '/mon-espace/alertes' : '/alertes');
     }
   };
 
@@ -174,7 +177,11 @@ export default function Header({ title, subtitle }) {
 
               <button
                 className="header-notif-viewall"
-                onClick={() => { setShowDropdown(false); navigate('/alertes'); }}
+                onClick={() => {
+                  setShowDropdown(false);
+                  const user = JSON.parse(localStorage.getItem('user') || '{}');
+                  navigate(user.role === 'EMPLOYE' ? '/mon-espace/alertes' : '/alertes');
+                }}
               >
                 Voir toutes les alertes
                 <ArrowRight size={14} />
