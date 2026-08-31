@@ -79,6 +79,9 @@ export default function Login() {
       <div className="login-visual">
         <div className="visual-overlay"></div>
         <div className="visual-content">
+          <div className="visual-logo-pill">
+            <img src="/csi-digital-logo.png" alt="CSI Digital" className="visual-brand-img" />
+          </div>
           <h1>Gestion RH & Contrats</h1>
           <p>La plateforme centralisée pour la gestion administrative et le suivi opérationnel de vos collaborateurs.</p>
         </div>
@@ -87,6 +90,9 @@ export default function Login() {
       <div className="login-form-side">
         <div className="login-card">
           <div className="login-header">
+            <div className="login-brand-wrapper">
+              <img src="/csi-digital-logo.png" alt="CSI Digital" className="login-brand-logo" />
+            </div>
             <h2>Espace Connexion</h2>
             <p>Connectez-vous pour accéder à votre espace</p>
           </div>
@@ -160,10 +166,6 @@ export default function Login() {
               )}
             </button>
           </form>
-
-          <div className="login-footer">
-            <p>Compte de test RH : <strong>admin@rh.com</strong> / <strong>Admin123!</strong></p>
-          </div>
         </div>
       </div>
 

@@ -37,8 +37,26 @@
   text-align: left;
 }
 
+.visual-logo-pill {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  padding: 8px 18px;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  margin-bottom: 24px;
+}
+
+.visual-brand-img {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
+
 .visual-content h1 {
-  font-size: 48px;
+  font-size: 44px;
   color: white;
   margin-bottom: 20px;
   line-height: 1.2;
@@ -71,6 +89,19 @@
 .login-header {
   margin-bottom: 32px;
   text-align: left;
+}
+
+.login-brand-wrapper {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+}
+
+.login-brand-logo {
+  height: 52px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.04));
 }
 
 .login-header h2 {
