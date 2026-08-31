@@ -48,7 +48,7 @@ SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 
 # URL de l'application frontend (pour les boutons dans les emails)
-APP_URL = os.getenv("APP_URL", "http://localhost:5174")
+APP_URL = os.getenv("APP_URL", "http://localhost:5173")
 
 # Timeout HTTP pour les appels API (secondes)
 _HTTP_TIMEOUT = 15
