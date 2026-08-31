@@ -76,6 +76,29 @@ def _notify_account_locked(user: Utilisateur, locked_until) -> None:
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
     """Connexion d'un utilisateur et retour d'un access token + refresh token."""
+    # 1. Vérification reCAPTCHA obligatoire
+    from app.core.recaptcha_service import verify_recaptcha_token
+
+    if not payload.recaptcha_token or not payload.recaptcha_token.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Veuillez confirmer que vous n'êtes pas un robot."
+        )
+
+    client_ip = request.client.host if request.client else None
+    captcha_ok, error_reason = verify_recaptcha_token(payload.recaptcha_token, client_ip)
+
+    if not captcha_ok:
+        if error_reason == "timeout-or-duplicate":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La vérification CAPTCHA a expiré. Veuillez la renouveler."
+            )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="La vérification CAPTCHA a échoué. Veuillez réessayer."
+        )
+
     clean_email = payload.email.strip().lower()
     user = db.query(Utilisateur).filter(func.lower(Utilisateur.email) == clean_email).first()
 

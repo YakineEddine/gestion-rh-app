@@ -10,6 +10,7 @@ from app.models.models import TypeContratEnum
 class LoginRequest(BaseModel):
     email: str
     mot_de_passe: str
+    recaptcha_token: Optional[str] = None
 
 
 class TokenResponse(BaseModel):

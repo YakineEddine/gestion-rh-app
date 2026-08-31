@@ -1,15 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, AlertCircle, Lock, Loader2 } from 'lucide-react';
+import ReCAPTCHA from 'react-google-recaptcha';
 import api from '../services/api';
 import './Login.css';
+
+// Clé de test officielle Google reCAPTCHA v2 par défaut
+const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [recaptchaToken, setRecaptchaToken] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const recaptchaRef = useRef(null);
   const navigate = useNavigate();
 
   // State pour la modale mot de passe oublie
@@ -26,12 +32,19 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    if (!recaptchaToken) {
+      setError("Veuillez confirmer que vous n'êtes pas un robot.");
+      return;
+    }
+
     setLoading(true);
 
     try {
       const response = await api.post('/auth/login', {
         email: email,
         mot_de_passe: password,
+        recaptcha_token: recaptchaToken,
       });
 
       localStorage.setItem('token', response.data.access_token);
@@ -46,6 +59,9 @@ export default function Login() {
     } catch (err) {
       const message = err.response?.data?.detail || 'Connexion échouée. Veuillez vérifier vos identifiants.';
       setError(message);
+      // Réinitialiser le CAPTCHA après une tentative échouée
+      setRecaptchaToken('');
+      recaptchaRef.current?.reset();
     } finally {
       setLoading(false);
     }
@@ -154,7 +170,27 @@ export default function Login() {
               </div>
             </div>
 
-            <button type="submit" className="login-submit-btn" disabled={loading}>
+            {/* Google reCAPTCHA v2 Checkbox */}
+            <div className="recaptcha-wrapper">
+              <ReCAPTCHA
+                ref={recaptchaRef}
+                sitekey={RECAPTCHA_SITE_KEY}
+                onChange={(token) => {
+                  setRecaptchaToken(token || '');
+                  if (token) setError('');
+                }}
+                onExpired={() => {
+                  setRecaptchaToken('');
+                  setError('La vérification CAPTCHA a expiré. Veuillez la renouveler.');
+                }}
+                onErrored={() => {
+                  setRecaptchaToken('');
+                  setError('La vérification CAPTCHA a échoué. Veuillez réessayer.');
+                }}
+              />
+            </div>
+
+            <button type="submit" className="login-submit-btn" disabled={loading || !recaptchaToken}>
               {loading ? (
                 <>
                   <Loader2 size={18} className="spin-icon" /> Connexion en cours...

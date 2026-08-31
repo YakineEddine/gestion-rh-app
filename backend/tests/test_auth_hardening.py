@@ -70,8 +70,9 @@ def db():
 
 @pytest.fixture(scope="function")
 def client(db):
-    with TestClient(app) as c:
-        yield c
+    with patch("app.core.recaptcha_service.verify_recaptcha_token", return_value=(True, "")):
+        with TestClient(app) as c:
+            yield c
 
 
 def create_user(
@@ -99,8 +100,11 @@ def create_user(
     return user
 
 
-def login(client, email, password):
-    return client.post("/api/auth/login", json={"email": email, "mot_de_passe": password})
+def login(client, email, password, recaptcha_token="valid_test_token"):
+    return client.post(
+        "/api/auth/login",
+        json={"email": email, "mot_de_passe": password, "recaptcha_token": recaptcha_token},
+    )
 
 
 # ---------------------------------------------------------------------------
