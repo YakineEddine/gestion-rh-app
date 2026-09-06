@@ -567,3 +567,228 @@
   font-size: 11px;
   font-weight: 500;
 }
+
+/* ==========================================================================
+   STYLES POUR LE CONTENU STRUCTURÉ (PARAGRAPHES + TABLEAUX)
+   ========================================================================== */
+
+/* Badges de type de contenu */
+.contenu-structured-pill-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.article-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.article-type-badge.table {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+
+.article-type-badge.mixed {
+  background: #faf5ff;
+  color: #7c3aed;
+  border: 1px solid #e9d5ff;
+}
+
+.article-type-badge.paragraph {
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+/* Onglets d'affichage Mode Visuel / Code */
+.contenu-header-with-tabs {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.view-mode-tabs {
+  display: flex;
+  background: #f1f5f9;
+  padding: 2px;
+  border-radius: 8px;
+  gap: 2px;
+}
+
+.view-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 11.5px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.view-tab-btn:hover {
+  color: #1e293b;
+}
+
+.view-tab-btn.active {
+  background: #ffffff;
+  color: #4f46e5;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Boîte de prévisualisation dans le formulaire */
+.structured-preview-box {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 14px 16px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+/* Rendu des blocs structurés */
+.structured-blocks-renderer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.structured-para {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #334155;
+  white-space: pre-wrap;
+}
+
+.structured-table-container {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.structured-html-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.structured-html-table th {
+  background: #f1f5f9;
+  color: #1e293b;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-bottom: 2px solid #e2e8f0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.structured-html-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+}
+
+.structured-html-table tr:nth-child(even) {
+  background: #fafbfc;
+}
+
+.structured-html-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Carte de résultat IA structuré */
+.ai-result-card {
+  margin-top: 14px;
+  background: #ffffff;
+  border: 1.5px solid #d8b4fe;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.08);
+}
+
+.ai-result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #f5f3ff, #faf5ff);
+  border-bottom: 1px solid #e9d5ff;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ai-result-title-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #4c1d95;
+}
+
+.ai-success-icon {
+  color: #10b981;
+  flex-shrink: 0;
+}
+
+.ai-result-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.ai-action-btn {
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s ease;
+}
+
+.ai-action-btn.primary {
+  background: #7c3aed;
+  color: #ffffff;
+}
+
+.ai-action-btn.primary:hover {
+  background: #6d28d9;
+  box-shadow: 0 2px 6px rgba(109, 40, 217, 0.25);
+}
+
+.ai-action-btn.secondary {
+  background: #ede9fe;
+  color: #5b21b6;
+  border: 1px solid #ddd6fe;
+}
+
+.ai-action-btn.secondary:hover {
+  background: #ddd6fe;
+}
+
+.ai-result-preview-content {
+  padding: 14px;
+  max-height: 250px;
+  overflow-y: auto;
+  background: #ffffff;
+}
+

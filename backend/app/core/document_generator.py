@@ -7,6 +7,8 @@ from docx import Document
 from docx.shared import Pt, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
+from app.core.ai_service import parse_structured_content
+
 ENTREPRISE_NOM = "Enterprise RH"
 
 
@@ -17,6 +19,57 @@ def _format_montant(montant: int) -> str:
 
 def _format_date(d) -> str:
     return d.strftime("%d/%m/%Y") if d else "-"
+
+
+def _render_article_content(doc: Document, content_text: str):
+    """
+    Rend le contenu d'un article dans le document Word.
+    Prend en charge à la fois le texte brut classique et le JSON structuré
+    (paragraphes, tableaux Word avec en-têtes et bordures, ou mixte).
+    """
+    if not content_text or not content_text.strip():
+        doc.add_paragraph().add_run("(Contenu non renseigné)").italic = True
+        return
+
+    structured = parse_structured_content(content_text)
+    if not structured:
+        # Contenu texte brut standard (rétrocompatibilité totale)
+        doc.add_paragraph(content_text)
+        return
+
+    # Contenu structuré avec blocs
+    blocks = structured.get("blocks", [])
+    for block in blocks:
+        btype = block.get("type", "paragraph")
+        if btype == "paragraph":
+            text = block.get("content", "").strip()
+            if text:
+                doc.add_paragraph(text)
+        elif btype == "table":
+            headers = block.get("headers", [])
+            rows = block.get("rows", [])
+            if headers:
+                col_count = len(headers)
+                t = doc.add_table(rows=0, cols=col_count)
+                t.style = "Light Grid Accent 1"
+
+                # Ligne d'en-tête
+                hdr_cells = t.add_row().cells
+                for idx, h in enumerate(headers):
+                    hdr_cells[idx].text = str(h)
+                    if hdr_cells[idx].paragraphs[0].runs:
+                        hdr_cells[idx].paragraphs[0].runs[0].bold = True
+
+                # Lignes de données
+                for row_data in rows:
+                    row_cells = t.add_row().cells
+                    for idx, val in enumerate(row_data):
+                        if idx < col_count:
+                            row_cells[idx].text = str(val) if val is not None else ""
+
+                # Espace après le tableau
+                doc.add_paragraph()
+
 
 
 def generer_contrat_word(contrat) -> io.BytesIO:
@@ -110,10 +163,7 @@ def generer_contrat_word(contrat) -> io.BytesIO:
         doc.add_heading("Clauses contractuelles", level=1)
         for i, article in enumerate(articles, start=1):
             doc.add_heading(f"Article {i} — {article.titre}", level=2)
-            if article.contenu_par_defaut:
-                doc.add_paragraph(article.contenu_par_defaut)
-            else:
-                doc.add_paragraph().add_run("(Contenu non renseigné)").italic = True
+            _render_article_content(doc, article.contenu_par_defaut)
 
     doc.add_paragraph()
     doc.add_paragraph()

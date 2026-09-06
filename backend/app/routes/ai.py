@@ -10,7 +10,7 @@ from app.database import get_db
 from app.models.models import Utilisateur, AuditActionEnum, AuditEntiteEnum
 from app.core.security import require_any_role
 from app.core.audit_service import log_action
-from app.core.ai_service import generate_clause, is_configured
+from app.core.ai_service import generate_clause, generate_structured_clause, is_configured
 
 router = APIRouter(prefix="/api/ai", tags=["Assistant IA"])
 
@@ -23,6 +23,13 @@ class AIGenerateResponse(BaseModel):
     title: str
     content: str
     category: str
+
+
+class AIStructuredGenerateResponse(BaseModel):
+    type: str  # "paragraph", "table", "mixed"
+    title: str
+    category: str
+    blocks: list
 
 
 @router.get("/status")
@@ -39,7 +46,7 @@ def generate_article_clause(
     current_user: Utilisateur = Depends(require_any_role("RH", "ADMIN")),
 ):
     """
-    Génère une proposition de clause contractuelle via l'IA.
+    Génère une proposition de clause contractuelle via l'IA (format simple).
     Le résultat N'EST PAS enregistré automatiquement :
     le RH doit relire, modifier si nécessaire, puis enregistrer manuellement.
     """
@@ -66,3 +73,43 @@ def generate_article_clause(
     )
 
     return AIGenerateResponse(**result)
+
+
+@router.post("/articles/generate-structured", response_model=AIStructuredGenerateResponse)
+def generate_structured_article_clause(
+    payload: AIGenerateRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(require_any_role("RH", "ADMIN")),
+):
+    """
+    Génère une proposition de clause contractuelle structurée (paragraphes, tableaux, ou mixte) via l'IA.
+    Le résultat N'EST PAS enregistré automatiquement :
+    le RH peut prévisualiser, ajuster et enregistrer manuellement.
+    """
+    try:
+        result = generate_structured_clause(payload.prompt)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
+
+    # Audit : tracer la génération IA structurée
+    log_action(
+        db=db,
+        utilisateur_id=current_user.id,
+        action=AuditActionEnum.AI_GENERATE.value,
+        entite=AuditEntiteEnum.ARTICLE.value,
+        description=f"Proposition de clause structurée ({result.get('type', 'standard')}) générée par IA : \"{result['title']}\"",
+        nouvelles_valeurs={
+            "titre_genere": result["title"],
+            "categorie": result["category"],
+            "type_contenu": result.get("type", "paragraph"),
+            "nb_blocs": len(result.get("blocks", [])),
+            "prompt_resume": payload.prompt[:100] + ("..." if len(payload.prompt) > 100 else ""),
+        },
+        request=request,
+    )
+
+    return AIStructuredGenerateResponse(**result)
+

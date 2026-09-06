@@ -3,12 +3,109 @@ import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight,
   ChevronLeft, ChevronRight, X, Save, Hash, Type, AlignLeft,
-  Sparkles, Loader2, AlertTriangle, Wand2
+  Sparkles, Loader2, AlertTriangle, Wand2, Table, Layers, FileText,
+  Eye, Code, CheckCircle2
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import api from '../services/api';
 import './ArticlesList.css';
+
+// ── Helpers pour le contenu structuré ─────────────────────────────
+export function tryParseStructured(content) {
+  if (!content || typeof content !== 'string') return null;
+  const trimmed = content.trim();
+  if (!trimmed.startsWith('{')) return null;
+  try {
+    const data = JSON.parse(trimmed);
+    if (data && Array.isArray(data.blocks) && data.blocks.length > 0) {
+      return data;
+    }
+  } catch (e) {
+    return null;
+  }
+  return null;
+}
+
+export function structuredToMarkdown(data) {
+  if (!data || !data.blocks) return '';
+  const parts = [];
+  data.blocks.forEach(block => {
+    if (block.type === 'paragraph' && block.content) {
+      parts.push(block.content);
+    } else if (block.type === 'table' && block.headers) {
+      parts.push('| ' + block.headers.join(' | ') + ' |');
+      parts.push('| ' + block.headers.map(() => '---').join(' | ') + ' |');
+      (block.rows || []).forEach(row => {
+        parts.push('| ' + (Array.isArray(row) ? row.join(' | ') : row) + ' |');
+      });
+    }
+  });
+  return parts.join('\n\n');
+}
+
+export function getStructuredPreviewText(structured) {
+  if (!structured || !structured.blocks) return '';
+  const firstPara = structured.blocks.find(b => b.type === 'paragraph');
+  if (firstPara && firstPara.content) {
+    return firstPara.content.length > 110
+      ? firstPara.content.substring(0, 110) + '...'
+      : firstPara.content;
+  }
+  const firstTable = structured.blocks.find(b => b.type === 'table');
+  if (firstTable && firstTable.headers) {
+    return `Tableau : ${firstTable.headers.slice(0, 3).join(', ')} (${(firstTable.rows || []).length} lignes)`;
+  }
+  return 'Contenu structuré multi-blocs';
+}
+
+// ── Composant d'affichage des blocs structurés ────────────────────
+export function StructuredBlocksRenderer({ data }) {
+  if (!data || !Array.isArray(data.blocks)) return null;
+
+  return (
+    <div className="structured-blocks-renderer">
+      {data.blocks.map((block, idx) => {
+        if (block.type === 'paragraph') {
+          return (
+            <p key={idx} className="structured-para">
+              {block.content}
+            </p>
+          );
+        }
+        if (block.type === 'table') {
+          const headers = block.headers || [];
+          const rows = block.rows || [];
+          return (
+            <div key={idx} className="structured-table-container">
+              <table className="structured-html-table">
+                <thead>
+                  <tr>
+                    {headers.map((h, hIdx) => (
+                      <th key={hIdx}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, rIdx) => (
+                    <tr key={rIdx}>
+                      {Array.isArray(row) ? (
+                        row.map((cell, cIdx) => <td key={cIdx}>{cell}</td>)
+                      ) : (
+                        <td>{row}</td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+        return null;
+      })}
+    </div>
+  );
+}
 
 export default function ArticlesList() {
   const [articles, setArticles] = useState([]);
@@ -27,11 +124,13 @@ export default function ArticlesList() {
   const [formData, setFormData] = useState({ code: '', titre: '', contenu_par_defaut: '' });
   const [formError, setFormError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
+  const [viewTab, setViewTab] = useState('preview'); // 'preview' | 'code'
 
   // IA intégrée au formulaire
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
+  const [aiResult, setAiResult] = useState(null);
 
   useEffect(() => {
     fetchArticles();
@@ -85,6 +184,8 @@ export default function ArticlesList() {
     setFormError('');
     setAiPrompt('');
     setAiError('');
+    setAiResult(null);
+    setViewTab('preview');
     setShowModal(true);
   };
 
@@ -98,6 +199,8 @@ export default function ArticlesList() {
     setFormError('');
     setAiPrompt('');
     setAiError('');
+    setAiResult(null);
+    setViewTab(tryParseStructured(article.contenu_par_defaut) ? 'preview' : 'code');
     setShowModal(true);
   };
 
@@ -107,6 +210,7 @@ export default function ArticlesList() {
     setFormError('');
     setAiPrompt('');
     setAiError('');
+    setAiResult(null);
   };
 
   const handleSubmit = async (e) => {
@@ -148,23 +252,27 @@ export default function ArticlesList() {
     }
   };
 
-  // ── IA intégrée ──────────────────────────────────────────────
+  // ── IA intégrée (Génération structurée) ───────────────────────
   const handleAIGenerate = async () => {
     if (!aiPrompt.trim()) {
-      setAiError("Veuillez décrire la clause que vous souhaitez générer.");
+      setAiError("Veuillez décrire la clause ou grille que vous souhaitez générer.");
       return;
     }
     setAiError('');
     setAiLoading(true);
 
     try {
-      const res = await api.post('/ai/articles/generate', { prompt: aiPrompt.trim() });
-      // Injecter le résultat dans les champs du formulaire
+      const res = await api.post('/ai/articles/generate-structured', { prompt: aiPrompt.trim() });
+      const structuredData = res.data;
+      setAiResult(structuredData);
+
+      // Injecter le résultat structuré dans le formulaire
       setFormData(prev => ({
         ...prev,
-        titre: prev.titre || res.data.title,
-        contenu_par_defaut: res.data.content,
+        titre: prev.titre || structuredData.title,
+        contenu_par_defaut: JSON.stringify(structuredData, null, 2),
       }));
+      setViewTab('preview');
     } catch (err) {
       const detail = err.response?.data?.detail;
       if (err.response?.status === 503) {
@@ -177,6 +285,25 @@ export default function ArticlesList() {
     } finally {
       setAiLoading(false);
     }
+  };
+
+  const handleApplyAsMarkdown = () => {
+    if (!aiResult) return;
+    const md = structuredToMarkdown(aiResult);
+    setFormData(prev => ({
+      ...prev,
+      contenu_par_defaut: md
+    }));
+    setViewTab('code');
+  };
+
+  const handleApplyAsStructured = () => {
+    if (!aiResult) return;
+    setFormData(prev => ({
+      ...prev,
+      contenu_par_defaut: JSON.stringify(aiResult, null, 2)
+    }));
+    setViewTab('preview');
   };
 
   // Pagination render
@@ -309,11 +436,29 @@ export default function ArticlesList() {
                         </td>
                         <td className="article-titre-cell">{article.titre}</td>
                         <td className="article-contenu-cell">
-                          <span className="contenu-preview">
-                            {article.contenu_par_defaut
-                              ? article.contenu_par_defaut.substring(0, 120) + (article.contenu_par_defaut.length > 120 ? '...' : '')
-                              : '—'}
-                          </span>
+                          {(() => {
+                            const structured = tryParseStructured(article.contenu_par_defaut);
+                            if (structured) {
+                              return (
+                                <div className="contenu-structured-pill-wrapper">
+                                  <span className={`article-type-badge ${structured.type}`}>
+                                    {structured.type === 'table' ? <Table size={12} /> : structured.type === 'mixed' ? <Layers size={12} /> : <FileText size={12} />}
+                                    {structured.type === 'table' ? 'Tableau' : structured.type === 'mixed' ? 'Mixte' : 'Paragraphe'}
+                                  </span>
+                                  <span className="contenu-preview">
+                                    {getStructuredPreviewText(structured)}
+                                  </span>
+                                </div>
+                              );
+                            }
+                            return (
+                              <span className="contenu-preview">
+                                {article.contenu_par_defaut
+                                  ? article.contenu_par_defaut.substring(0, 120) + (article.contenu_par_defaut.length > 120 ? '...' : '')
+                                  : '—'}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td>
                           <span className={`status-badge-article ${article.est_actif ? 'actif' : 'inactif'}`}>
@@ -416,13 +561,41 @@ export default function ArticlesList() {
                 </div>
               </div>
               <div className="form-group">
-                <label><AlignLeft size={14} /> Contenu par défaut</label>
-                <textarea
-                  value={formData.contenu_par_defaut}
-                  onChange={(e) => setFormData({ ...formData, contenu_par_defaut: e.target.value })}
-                  placeholder="Rédigez le contenu de la clause ici ou utilisez l'assistant IA ci-dessous..."
-                  rows={8}
-                />
+                <div className="contenu-header-with-tabs">
+                  <label><AlignLeft size={14} /> Contenu par défaut</label>
+                  {tryParseStructured(formData.contenu_par_defaut) && (
+                    <div className="view-mode-tabs">
+                      <button
+                        type="button"
+                        className={`view-tab-btn ${viewTab === 'preview' ? 'active' : ''}`}
+                        onClick={() => setViewTab('preview')}
+                      >
+                        <Eye size={13} /> Aperçu visuel
+                      </button>
+                      <button
+                        type="button"
+                        className={`view-tab-btn ${viewTab === 'code' ? 'active' : ''}`}
+                        onClick={() => setViewTab('code')}
+                      >
+                        <Code size={13} /> Éditeur JSON
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {tryParseStructured(formData.contenu_par_defaut) && viewTab === 'preview' ? (
+                  <div className="structured-preview-box">
+                    <StructuredBlocksRenderer data={tryParseStructured(formData.contenu_par_defaut)} />
+                  </div>
+                ) : (
+                  <textarea
+                    value={formData.contenu_par_defaut}
+                    onChange={(e) => setFormData({ ...formData, contenu_par_defaut: e.target.value })}
+                    placeholder="Rédigez le contenu de la clause ici ou utilisez l'assistant IA ci-dessous..."
+                    rows={8}
+                    className="article-content-textarea"
+                  />
+                )}
               </div>
 
               {/* Section IA intégrée */}
@@ -433,8 +606,8 @@ export default function ArticlesList() {
                       <Sparkles size={16} />
                     </div>
                     <div className="ai-inline-header-text">
-                      <span className="ai-inline-title">Assistant IA — Générer une clause</span>
-                      <span className="ai-inline-subtitle">Décrivez la clause souhaitée, l'IA remplira le contenu ci-dessus.</span>
+                      <span className="ai-inline-title">Assistant IA — Clauses & Grilles structurées</span>
+                      <span className="ai-inline-subtitle">Générez des paragraphes, tableaux de rémunération, grilles d'objectifs, etc.</span>
                     </div>
                   </div>
 
@@ -443,7 +616,7 @@ export default function ArticlesList() {
                       className="ai-inline-textarea"
                       value={aiPrompt}
                       onChange={(e) => setAiPrompt(e.target.value)}
-                      placeholder="Ex : Rédige une clause de télétravail pour 2 jours par semaine sous droit tunisien..."
+                      placeholder="Ex : Rédige un article sur la rémunération avec un salaire fixe de 2000 DT et une prime variable selon objectifs sous forme de tableau."
                       rows={3}
                       disabled={aiLoading}
                       maxLength={2000}
@@ -459,7 +632,7 @@ export default function ArticlesList() {
                         {aiLoading ? (
                           <>
                             <Loader2 size={15} className="ai-spinner" />
-                            Génération...
+                            Génération en cours...
                           </>
                         ) : (
                           <>
@@ -469,16 +642,55 @@ export default function ArticlesList() {
                         )}
                       </button>
                     </div>
+
                     {aiError && (
                       <div className="ai-inline-error">
                         <AlertTriangle size={14} />
                         {aiError}
                       </div>
                     )}
+
+                    {/* Carte de résultat IA structuré */}
+                    {aiResult && (
+                      <div className="ai-result-card">
+                        <div className="ai-result-header">
+                          <div className="ai-result-title-badge">
+                            <CheckCircle2 size={16} className="ai-success-icon" />
+                            <span className="ai-result-title">Proposition : <strong>{aiResult.title}</strong></span>
+                            <span className={`article-type-badge ${aiResult.type}`}>
+                              {aiResult.type === 'table' ? <Table size={12} /> : aiResult.type === 'mixed' ? <Layers size={12} /> : <FileText size={12} />}
+                              {aiResult.type === 'table' ? 'Tableau' : aiResult.type === 'mixed' ? 'Mixte' : 'Paragraphe'}
+                            </span>
+                          </div>
+                          <div className="ai-result-actions">
+                            <button
+                              type="button"
+                              onClick={handleApplyAsStructured}
+                              className="ai-action-btn primary"
+                              title="Conserver les tableaux structurés pour le contrat Word"
+                            >
+                              Format structuré
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleApplyAsMarkdown}
+                              className="ai-action-btn secondary"
+                              title="Convertir en texte Markdown simple"
+                            >
+                              Convertir en Markdown
+                            </button>
+                          </div>
+                        </div>
+                        <div className="ai-result-preview-content">
+                          <StructuredBlocksRenderer data={aiResult} />
+                        </div>
+                      </div>
+                    )}
                   </div>
+
                   <div className="ai-inline-disclaimer">
                     <AlertTriangle size={12} />
-                    Contenu généré par IA : veuillez vérifier et valider le texte avant utilisation.
+                    Contenu généré par IA : relisez et vérifiez les clauses avant enregistrement et utilisation.
                   </div>
                 </div>
               )}
