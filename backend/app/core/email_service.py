@@ -306,7 +306,7 @@ def template_contract_expired(prenom: str, reference: str, date_fin: str) -> str
     return _base_template("Contrat expire", body, "Gerer les contrats", f"{APP_URL}/contrats")
 
 
-def template_contract_activated(prenom: str, reference: str, date_debut: str) -> str:
+def template_contract_activated(prenom: str, reference: str, date_debut: str, direct_token: Optional[str] = None) -> str:
     """Template pour informer un employe que son contrat est actif et disponible."""
     body = f"""
     <p style="color:#334155;font-size:15px;line-height:1.6;">Bonjour <strong>{prenom}</strong>,</p>
@@ -318,7 +318,8 @@ def template_contract_activated(prenom: str, reference: str, date_debut: str) ->
       </p>
     </div>
     <p style="color:#64748b;font-size:14px;">Vous pouvez le consulter et le telecharger a tout moment depuis votre tableau de bord.</p>"""
-    return _base_template("Votre contrat est disponible", body, "Acceder a mon espace", f"{APP_URL}/mon-espace/contrats")
+    url = f"{APP_URL}/mon-espace/contrats?direct_token={direct_token}" if direct_token else f"{APP_URL}/mon-espace/contrats"
+    return _base_template("Votre contrat est disponible", body, "Acceder a mon espace", url)
 
 
 def template_contract_status_change(prenom: str, reference: str, ancien_statut: str, nouveau_statut: str) -> str:
@@ -336,7 +337,7 @@ def template_contract_status_change(prenom: str, reference: str, ancien_statut: 
 
 
 def template_contract_expiring_employe(
-    prenom: str, nom: str, reference: str, date_fin: str, jours_restants: int, priorite: str
+    prenom: str, nom: str, reference: str, date_fin: str, jours_restants: int, priorite: str = "WARNING", direct_token: Optional[str] = None
 ) -> str:
     """Template pour informer un employe que son contrat arrive a expiration."""
     color = "#dc2626" if priorite == "CRITICAL" else "#d97706"
@@ -353,11 +354,12 @@ def template_contract_expiring_employe(
       </p>
     </div>
     <p style="color:#64748b;font-size:14px;">Vous pouvez consulter les détails de votre contrat depuis votre espace personnel.</p>"""
-    return _base_template("Votre contrat arrive bientôt à expiration", body, "Consulter mon contrat", f"{APP_URL}/mon-espace/contrats")
+    url = f"{APP_URL}/mon-espace/contrats?direct_token={direct_token}" if direct_token else f"{APP_URL}/mon-espace/contrats"
+    return _base_template("Votre contrat arrive bientôt à expiration", body, "Consulter mon contrat", url)
 
 
 def template_contract_expired_employe(
-    prenom: str, nom: str, reference: str, date_fin: str
+    prenom: str, nom: str, reference: str, date_fin: str, direct_token: Optional[str] = None
 ) -> str:
     """Template pour informer un employe que son contrat est arrive a expiration."""
     body = f"""
@@ -369,4 +371,6 @@ def template_contract_expired_employe(
       </p>
     </div>
     <p style="color:#64748b;font-size:14px;">Vous pouvez consulter votre historique de contrats depuis votre espace personnel.</p>"""
-    return _base_template("Votre contrat est arrivé à expiration", body, "Consulter mon contrat", f"{APP_URL}/mon-espace/contrats")
+    url = f"{APP_URL}/mon-espace/contrats?direct_token={direct_token}" if direct_token else f"{APP_URL}/mon-espace/contrats"
+    return _base_template("Votre contrat est arrivé à expiration", body, "Consulter mon contrat", url)
+

@@ -297,3 +297,48 @@ def require_any_role(*allowed_roles: str):
             )
         return current_user
     return role_checker
+
+
+def create_direct_access_token(
+    user_id: int,
+    email: str,
+    purpose: str = "contract_notification",
+    expires_delta: Optional[timedelta] = None
+) -> str:
+    """
+    Crée un token JWT signé pour un accès direct depuis un email de notification.
+    Permet à l'employé de consulter immédiatement son espace sans être bloqué
+    par une session tierce (ex: compte RH/ADMIN précédemment connecté sur le navigateur).
+    """
+    to_encode = {
+        "sub": email,
+        "user_id": user_id,
+        "purpose": purpose,
+        "type": "direct_access",
+    }
+    expire = datetime.utcnow() + (expires_delta or timedelta(days=14))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def verify_direct_access_token(token: str, db: Session) -> Optional[Utilisateur]:
+    """
+    Vérifie un direct_access_token et retourne l'utilisateur correspondant s'il est valide et actif.
+    """
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "direct_access":
+            return None
+        user_id = payload.get("user_id")
+        email = payload.get("sub")
+        if not user_id or not email:
+            return None
+        user = db.query(Utilisateur).filter(
+            Utilisateur.id == user_id,
+            Utilisateur.email == email,
+            Utilisateur.est_actif == True
+        ).first()
+        return user
+    except JWTError:
+        return None
+

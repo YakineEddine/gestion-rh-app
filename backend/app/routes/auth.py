@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -15,7 +16,7 @@ from app.core.security import (
     get_current_user, validate_password, is_account_locked,
     record_failed_login, reset_login_attempts,
     create_refresh_token, verify_refresh_token, rotate_refresh_token,
-    revoke_all_user_refresh_tokens
+    revoke_all_user_refresh_tokens, verify_direct_access_token
 )
 from app.core.audit_service import log_action
 from app.core.email_service import (
@@ -23,6 +24,10 @@ from app.core.email_service import (
 )
 
 router = APIRouter(prefix="/api/auth", tags=["Authentification"])
+
+class DirectAccessRequest(BaseModel):
+    token: str
+
 
 # Messages génériques communs pour ne pas divulguer l'existence d'un email.
 _AUTH_ERROR_GENERIC = "Email ou mot de passe incorrect"
@@ -373,3 +378,55 @@ def reset_password(request: ResetPasswordRequest, request_http: Request, db: Ses
     )
 
     return {"message": "Votre mot de passe a été réinitialisé avec succès. Vous pouvez maintenant vous connecter."}
+
+
+@router.post("/direct-access", response_model=TokenResponse)
+def direct_access_login(
+    payload: DirectAccessRequest,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    Authentification directe sécurisée via un lien d'action reçu par email
+    (ex: notification d'échéance de contrat pour un employé).
+    Permet à l'employé d'accéder directement à son espace collaborateur même si
+    un autre compte (ex: RH Admin) était préalablement connecté sur le navigateur.
+    """
+    user = verify_direct_access_token(payload.token, db)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Lien d'accès expiré ou invalide. Veuillez vous connecter."
+        )
+
+    access_token = create_access_token(data={"sub": user.email, "role": user.role.value})
+    refresh_token = create_refresh_token(user, db)
+
+    log_action(
+        db=db,
+        utilisateur_id=user.id,
+        action=AuditActionEnum.LOGIN.value,
+        entite=AuditEntiteEnum.AUTH.value,
+        entite_id=user.id,
+        description=f"Accès direct depuis email pour l'employé {user.prenom} {user.nom} ({user.email})",
+        request=request,
+    )
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        user=UtilisateurResponse(
+            id=user.id,
+            nom=user.nom,
+            prenom=user.prenom,
+            email=user.email,
+            matricule=user.matricule,
+            date_embauche=user.date_embauche,
+            date_naissance=user.date_naissance,
+            telephone=user.telephone,
+            departement=user.departement,
+            poste=user.poste,
+            role=user.role.value
+        )
+    )
+

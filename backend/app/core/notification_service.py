@@ -30,6 +30,7 @@ from app.models.models import (
     Utilisateur,
 )
 from app.core.audit_service import log_action
+from app.core.security import create_direct_access_token
 from app.core.email_service import (
     send_email,
     template_contract_expiring,
@@ -205,11 +206,13 @@ def verifier_alertes_contrats(db: Session) -> int:
                     cree_pour_qqun = True
                     # Envoi email employé
                     if employe_user.email:
+                        direct_tok = create_direct_access_token(employe_user.id, employe_user.email)
                         html_emp = template_contract_expired_employe(
                             prenom=employe_user.prenom,
                             nom=employe_user.nom,
                             reference=contrat.reference,
                             date_fin=contrat.date_fin.strftime('%d/%m/%Y'),
+                            direct_token=direct_tok,
                         )
                         email_ok = send_email(
                             to=employe_user.email,
@@ -365,6 +368,7 @@ def verifier_alertes_contrats(db: Session) -> int:
                             should_send_email_emp = True
 
                     if should_send_email_emp and employe_user.email:
+                        direct_tok = create_direct_access_token(employe_user.id, employe_user.email)
                         html_emp = template_contract_expiring_employe(
                             prenom=employe_user.prenom,
                             nom=employe_user.nom,
@@ -372,6 +376,7 @@ def verifier_alertes_contrats(db: Session) -> int:
                             date_fin=contrat.date_fin.strftime('%d/%m/%Y'),
                             jours_restants=jours_restants,
                             priorite=priorite,
+                            direct_token=direct_tok,
                         )
                         email_ok = send_email(
                             to=employe_user.email,

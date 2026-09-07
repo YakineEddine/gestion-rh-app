@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, AlertCircle, Lock, Loader2 } from 'lucide-react';
 import ReCAPTCHA from 'react-google-recaptcha';
 import api from '../services/api';
@@ -9,11 +9,12 @@ import './Login.css';
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI';
 
 export default function Login() {
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [recaptchaToken, setRecaptchaToken] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(location.state?.message || '');
   const [loading, setLoading] = useState(false);
   const recaptchaRef = useRef(null);
   const navigate = useNavigate();
@@ -51,11 +52,12 @@ export default function Login() {
       localStorage.setItem('refresh_token', response.data.refresh_token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
 
-      if (response.data.user.role === 'RH') {
+      if (response.data.user.role === 'RH' || response.data.user.role === 'ADMIN') {
         navigate('/employes');
       } else {
         navigate('/mon-espace');
       }
+
     } catch (err) {
       const message = err.response?.data?.detail || 'Connexion échouée. Veuillez vérifier vos identifiants.';
       setError(message);

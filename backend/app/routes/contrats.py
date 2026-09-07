@@ -8,7 +8,7 @@ from datetime import date
 from app.database import get_db
 from app.models.models import Contrat, Article, Utilisateur, TypeContratEnum, AuditActionEnum, AuditEntiteEnum
 from app.schemas.schemas import ContratCreate, ContratUpdate, ContratResponse
-from app.core.security import require_role
+from app.core.security import require_role, create_direct_access_token
 from app.core.document_generator import generer_contrat_word
 from app.core.audit_service import log_action, diff_valeurs
 from app.core.notification_service import verifier_alertes_contrats
@@ -278,10 +278,12 @@ def update_contrat(
 
         # Si le contrat devient Actif, informer l'employé par email
         if apres["statut"] == "Actif" and contrat.employe and contrat.employe.email:
+            direct_tok = create_direct_access_token(contrat.employe.id, contrat.employe.email)
             html = template_contract_activated(
                 prenom=contrat.employe.prenom,
                 reference=contrat.reference,
                 date_debut=contrat.date_debut.strftime("%d/%m/%Y"),
+                direct_token=direct_tok,
             )
             email_ok = send_email(
                 to=contrat.employe.email,
