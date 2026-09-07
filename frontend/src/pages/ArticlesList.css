@@ -537,10 +537,11 @@
 /* Erreur IA inline */
 .ai-inline-error {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin-top: 10px;
-  padding: 9px 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px 14px;
   background: #fef2f2;
   border: 1px solid #fecaca;
   border-radius: 8px;
@@ -548,11 +549,47 @@
   font-size: 12px;
   font-weight: 500;
   line-height: 1.4;
+  box-shadow: 0 1px 2px rgba(239, 68, 68, 0.05);
 }
 
-.ai-inline-error svg {
+.ai-inline-error-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.ai-inline-error-content svg {
   flex-shrink: 0;
-  margin-top: 1px;
+  color: #dc2626;
+}
+
+.ai-retry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.ai-retry-btn:hover:not(:disabled) {
+  background: #b91c1c;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
+}
+
+.ai-retry-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Disclaimer IA */

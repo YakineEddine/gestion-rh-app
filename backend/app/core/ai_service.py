@@ -14,6 +14,7 @@ Le fournisseur est configurable dynamiquement via le fichier .env :
 """
 import os
 import json
+import time
 import logging
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -22,6 +23,39 @@ import httpx
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
+
+# Modèles Gemini de secours en cas de saturation ou spike temporaire
+GEMINI_FALLBACK_MODELS = [
+    "gemini-3.7-flash",
+    "gemini-3.8-flash",
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
+]
+
+def _format_ai_error(e: httpx.HTTPStatusError) -> str:
+    """Traduit les erreurs HTTP de l'API IA en messages clairs et professionnels."""
+    code = e.response.status_code
+    if code == 503:
+        return "Le modèle d'intelligence artificielle subit une forte affluence temporaire. Veuillez patienter quelques secondes et réessayer."
+    if code == 429:
+        return "Le quota de requêtes vers le service IA est temporairement dépassé. Veuillez patienter un instant."
+    if code in (401, 403):
+        return "La clé API du service IA est invalide ou expirée. Veuillez vérifier le fichier .env."
+    if code == 404:
+        return "Le modèle d'intelligence artificielle configuré est temporairement indisponible."
+
+    try:
+        data = e.response.json()
+        if "error" in data and isinstance(data["error"], dict) and "message" in data["error"]:
+            msg = data["error"]["message"]
+            if "high demand" in msg.lower() or "overloaded" in msg.lower() or "unavailable" in msg.lower():
+                return "Le modèle d'intelligence artificielle subit une forte affluence temporaire. Veuillez patienter quelques secondes et réessayer."
+            return f"Erreur IA : {msg}"
+    except Exception:
+        pass
+
+    return f"Erreur du fournisseur IA (code {code}). Veuillez réessayer."
+
 
 # Chemin absolu vers le fichier .env du backend
 ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env"
@@ -129,8 +163,9 @@ def is_configured() -> bool:
 # ── Appels aux fournisseurs (format simple — existant) ─────────────────
 
 def _call_gemini(user_prompt: str, cfg: Dict[str, Any]) -> dict:
-    """Appel a l'API Google Gemini (Generative AI REST API)."""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{cfg['model']}:generateContent?key={cfg['api_key']}"
+    """Appel a l'API Google Gemini avec retries et modèle de secours en cas de 503/429."""
+    configured_model = cfg.get("model") or "gemini-3.7-flash"
+    models_to_try = [configured_model] + [m for m in GEMINI_FALLBACK_MODELS if m != configured_model]
 
     payload = {
         "contents": [
@@ -147,13 +182,39 @@ def _call_gemini(user_prompt: str, cfg: Dict[str, Any]) -> dict:
         }
     }
 
+    last_exc = None
     with httpx.Client(timeout=cfg["timeout"]) as client:
-        response = client.post(url, json=payload)
-        response.raise_for_status()
+        for model in models_to_try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={cfg['api_key']}"
+            for attempt in range(2):
+                try:
+                    response = client.post(url, json=payload)
+                    response.raise_for_status()
+                    data = response.json()
+                    text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    return json.loads(text)
+                except httpx.HTTPStatusError as e:
+                    last_exc = e
+                    if e.response.status_code in (503, 429):
+                        logger.warning(
+                            "[AI-Gemini] Modèle %s saturé (HTTP %s), essai %d/2...",
+                            model, e.response.status_code, attempt + 1
+                        )
+                        time.sleep(1.0)
+                        continue
+                    raise
+                except httpx.TimeoutException as e:
+                    last_exc = e
+                    logger.warning("[AI-Gemini] Timeout sur %s, modèle suivant...", model)
+                    break
+                except Exception as e:
+                    last_exc = e
+                    break
 
-    data = response.json()
-    text = data["candidates"][0]["content"]["parts"][0]["text"]
-    return json.loads(text)
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("Impossible de joindre le fournisseur IA.")
+
 
 
 def _call_openai_compatible(user_prompt: str, cfg: Dict[str, Any], base_url: str) -> dict:
@@ -242,8 +303,7 @@ def generate_clause(prompt: str) -> dict:
         raise RuntimeError("Le fournisseur IA n'a pas répondu dans le délai imparti. Veuillez réessayer.")
     except httpx.HTTPStatusError as e:
         logger.error("[AI] Erreur HTTP %s : %s", e.response.status_code, e.response.text[:300])
-        err_msg = e.response.text[:200]
-        raise RuntimeError(f"Erreur du fournisseur IA (HTTP {e.response.status_code}) : {err_msg}")
+        raise RuntimeError(_format_ai_error(e))
     except json.JSONDecodeError:
         logger.error("[AI] Réponse IA non parseable en JSON")
         raise RuntimeError("La réponse de l'IA n'est pas au format attendu. Veuillez reformuler votre demande.")
@@ -268,8 +328,9 @@ def generate_clause(prompt: str) -> dict:
 # ═══════════════════════════════════════════════════════════════════════
 
 def _call_gemini_structured(user_prompt: str, cfg: Dict[str, Any]) -> dict:
-    """Appel a l'API Google Gemini avec le prompt structuré."""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{cfg['model']}:generateContent?key={cfg['api_key']}"
+    """Appel a l'API Google Gemini avec le prompt structuré, retries et modèles de secours."""
+    configured_model = cfg.get("model") or "gemini-3.7-flash"
+    models_to_try = [configured_model] + [m for m in GEMINI_FALLBACK_MODELS if m != configured_model]
 
     payload = {
         "contents": [
@@ -286,13 +347,38 @@ def _call_gemini_structured(user_prompt: str, cfg: Dict[str, Any]) -> dict:
         }
     }
 
+    last_exc = None
     with httpx.Client(timeout=cfg["timeout"]) as client:
-        response = client.post(url, json=payload)
-        response.raise_for_status()
+        for model in models_to_try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={cfg['api_key']}"
+            for attempt in range(2):
+                try:
+                    response = client.post(url, json=payload)
+                    response.raise_for_status()
+                    data = response.json()
+                    text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    return json.loads(text)
+                except httpx.HTTPStatusError as e:
+                    last_exc = e
+                    if e.response.status_code in (503, 429):
+                        logger.warning(
+                            "[AI-Gemini-Structured] Modèle %s saturé (HTTP %s), essai %d/2...",
+                            model, e.response.status_code, attempt + 1
+                        )
+                        time.sleep(1.0)
+                        continue
+                    raise
+                except httpx.TimeoutException as e:
+                    last_exc = e
+                    logger.warning("[AI-Gemini-Structured] Timeout sur %s, modèle suivant...", model)
+                    break
+                except Exception as e:
+                    last_exc = e
+                    break
 
-    data = response.json()
-    text = data["candidates"][0]["content"]["parts"][0]["text"]
-    return json.loads(text)
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("Impossible de joindre le fournisseur IA.")
 
 
 def _call_openai_compatible_structured(user_prompt: str, cfg: Dict[str, Any], base_url: str) -> dict:
@@ -424,8 +510,7 @@ def generate_structured_clause(prompt: str) -> dict:
         raise RuntimeError("Le fournisseur IA n'a pas répondu dans le délai imparti. Veuillez réessayer.")
     except httpx.HTTPStatusError as e:
         logger.error("[AI-Structured] Erreur HTTP %s : %s", e.response.status_code, e.response.text[:300])
-        err_msg = e.response.text[:200]
-        raise RuntimeError(f"Erreur du fournisseur IA (HTTP {e.response.status_code}) : {err_msg}")
+        raise RuntimeError(_format_ai_error(e))
     except json.JSONDecodeError:
         logger.error("[AI-Structured] Réponse IA non parseable en JSON")
         raise RuntimeError("La réponse de l'IA n'est pas au format attendu. Veuillez reformuler votre demande.")

@@ -4,7 +4,7 @@ import {
   BookOpen, Plus, Search, Edit2, Trash2, ToggleLeft, ToggleRight,
   ChevronLeft, ChevronRight, X, Save, Hash, Type, AlignLeft,
   Sparkles, Loader2, AlertTriangle, Wand2, Table, Layers, FileText,
-  Eye, Code, CheckCircle2
+  Eye, Code, CheckCircle2, RotateCw
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
@@ -274,13 +274,20 @@ export default function ArticlesList() {
       }));
       setViewTab('preview');
     } catch (err) {
-      const detail = err.response?.data?.detail;
-      if (err.response?.status === 503) {
-        setAiError(detail || "Le service IA est indisponible. Vérifiez la configuration.");
+      let detail = err.response?.data?.detail;
+      if (typeof detail === 'string' && detail.trim()) {
+        if (detail.toLowerCase().includes('high demand') || detail.toLowerCase().includes('unavailable') || detail.includes('503')) {
+          detail = "Le modèle d'intelligence artificielle subit une forte affluence temporaire. Veuillez patienter quelques secondes et cliquer sur Réessayer.";
+        }
+        setAiError(detail);
+      } else if (err.response?.status === 503) {
+        setAiError("Le modèle d'intelligence artificielle subit une forte affluence temporaire. Veuillez patienter quelques secondes et réessayer.");
+      } else if (err.response?.status === 429) {
+        setAiError("Le quota de requêtes vers le service IA est temporairement dépassé. Veuillez patienter un instant.");
       } else if (err.response?.status === 400) {
         setAiError(detail || "Requête invalide.");
       } else {
-        setAiError(detail || "Erreur lors de la génération. Veuillez réessayer.");
+        setAiError("Erreur lors de la génération. Veuillez réessayer.");
       }
     } finally {
       setAiLoading(false);
@@ -645,8 +652,20 @@ export default function ArticlesList() {
 
                     {aiError && (
                       <div className="ai-inline-error">
-                        <AlertTriangle size={14} />
-                        {aiError}
+                        <div className="ai-inline-error-content">
+                          <AlertTriangle size={15} />
+                          <span>{aiError}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="ai-retry-btn"
+                          onClick={handleAIGenerate}
+                          disabled={aiLoading}
+                          title="Relancer la génération"
+                        >
+                          <RotateCw size={12} className={aiLoading ? "ai-spinner" : ""} />
+                          Réessayer
+                        </button>
                       </div>
                     )}
 
