@@ -229,6 +229,22 @@ class AuditLogPaginatedResponse(BaseModel):
     items: List[AuditLogResponse]
 
 
+class ContratHistoriqueStatutResponse(BaseModel):
+    id: int
+    contrat_id: int
+    contrat_reference: Optional[str] = None
+    action: str
+    ancien_statut: Optional[str] = None
+    nouveau_statut: Optional[str] = None
+    description: str
+    date_action: datetime
+    utilisateur_id: Optional[int] = None
+    utilisateur_nom: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 # ===== SCHÉMAS NOTIFICATIONS / ALERTES =====
 
 class NotificationResponse(BaseModel):

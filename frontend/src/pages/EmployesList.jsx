@@ -458,16 +458,16 @@ export default function EmployesList() {
                           <td className="actions-cell-premium">
                             <div className="actions-buttons-container">
                               <Link 
-                                to={`/employes/modifier/${emp.id}`} 
+                                to={`/employes/modifier/${emp.id}?tab=contrats`} 
                                 className="action-circle-btn-view"
-                                title="Voir"
+                                title="Voir l'aperçu et les contrats"
                               >
                                 <Eye size={14} />
                               </Link>
                               <Link 
-                                to={`/employes/modifier/${emp.id}`} 
+                                to={`/employes/modifier/${emp.id}?tab=compte`} 
                                 className="action-circle-btn-edit"
-                                title="Modifier"
+                                title="Modifier les informations"
                               >
                                 <Edit2 size={14} />
                               </Link>

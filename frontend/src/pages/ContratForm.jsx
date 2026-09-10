@@ -129,6 +129,9 @@ export default function ContratForm() {
   const [selectedArticleIds, setSelectedArticleIds] = useState([]);
   const [searchArticle, setSearchArticle] = useState('');
 
+  // Copie de l'état d'origine du contrat pour détecter les modifications
+  const [originalContrat, setOriginalContrat] = useState(null);
+
   // ─── Chargement initial ───────────────────────────────────────────────────
 
   useEffect(() => {
@@ -165,6 +168,7 @@ export default function ContratForm() {
     try {
       const res = await api.get(`/contrats/${id}`);
       const c = res.data;
+      setOriginalContrat(c);
       setTypeContrat(c.type_contrat || '');
       setDateDebut(c.date_debut || '');
       setDateFin(c.date_fin || '');
@@ -226,6 +230,27 @@ export default function ContratForm() {
     );
   };
 
+  // ─── Vérification des modifications ───────────────────────────────────────
+
+  const checkIfContratModified = () => {
+    if (!originalContrat) return false;
+    if (typeContrat !== (originalContrat.type_contrat || '')) return true;
+    if (dateDebut !== (originalContrat.date_debut || '')) return true;
+    const origFin = originalContrat.date_fin || '';
+    const currFin = typeContrat === 'CDI' ? '' : (dateFin || '');
+    if (currFin !== origFin) return true;
+    if (Number(salaire) !== Number(originalContrat.salaire_mensuel || 0)) return true;
+    if (normaliseStatutCode(statut) !== normaliseStatutCode(originalContrat.statut)) return true;
+
+    const origArticles = (originalContrat.articles || []).map(a => a.id).sort();
+    const currArticles = [...selectedArticleIds].sort();
+    if (origArticles.length !== currArticles.length) return true;
+    for (let i = 0; i < origArticles.length; i++) {
+      if (origArticles[i] !== currArticles[i]) return true;
+    }
+    return false;
+  };
+
   // ─── Soumission ──────────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
@@ -233,6 +258,31 @@ export default function ContratForm() {
     setSubmitting(true);
     try {
       if (isEdit) {
+        const isModified = checkIfContratModified();
+
+        // Si le contrat a été modifié, télécharger automatiquement une copie Word de la version précédente
+        if (isModified) {
+          try {
+            const resWord = await api.post(`/contrats/${id}/generer-word`, null, { responseType: 'blob' });
+            const blob = new Blob([resWord.data], {
+              type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            const ref = originalContrat?.reference || `CTR-${id}`;
+            link.setAttribute('download', `Contrat_${ref}_avant_modification.docx`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            // Laisser le temps au navigateur de déclencher le téléchargement
+            await new Promise(resolve => setTimeout(resolve, 600));
+          } catch (dlErr) {
+            console.warn("Échec du téléchargement automatique de l'ancienne version Word:", dlErr);
+          }
+        }
+
         const payload = {
           type_contrat:    typeContrat,
           date_debut:      dateDebut || undefined,

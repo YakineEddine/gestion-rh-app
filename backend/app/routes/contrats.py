@@ -3,12 +3,12 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import Optional, List
-from datetime import date
+from datetime import date, datetime
 
 from app.database import get_db
-from app.models.models import Contrat, Article, Utilisateur, TypeContratEnum, StatutContratEnum, AuditActionEnum, AuditEntiteEnum
-from app.schemas.schemas import ContratCreate, ContratUpdate, ContratResponse
-from app.core.security import require_role, create_direct_access_token
+from app.models.models import Contrat, Article, Utilisateur, AuditLog, TypeContratEnum, StatutContratEnum, AuditActionEnum, AuditEntiteEnum
+from app.schemas.schemas import ContratCreate, ContratUpdate, ContratResponse, ContratHistoriqueStatutResponse
+from app.core.security import require_role, require_any_role, create_direct_access_token
 from app.core.document_generator import generer_contrat_word
 from app.core.audit_service import log_action, diff_valeurs
 from app.core.notification_service import verifier_alertes_contrats
@@ -90,6 +90,213 @@ def get_contrats(
     return query.order_by(Contrat.reference.desc()).all()
 
 
+@router.get("/employe/{employe_id}/historique-statuts", response_model=List[ContratHistoriqueStatutResponse])
+def get_historique_statuts_employe(
+    employe_id: int,
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(require_any_role("RH", "ADMIN"))
+):
+    """
+    Récupérer l'historique chronologique des modifications de statut
+    pour l'ensemble des contrats d'un employé.
+    """
+    employe = db.query(Utilisateur).filter(Utilisateur.id == employe_id).first()
+    if not employe:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employé non trouvé")
+
+    contrats = db.query(Contrat).filter(Contrat.employe_id == employe_id).all()
+    contrat_map = {c.id: c for c in contrats}
+    contrat_ids = list(contrat_map.keys())
+
+    if not contrat_ids:
+        return []
+
+    logs = (
+        db.query(AuditLog)
+        .options(joinedload(AuditLog.utilisateur))
+        .filter(
+            AuditLog.entite == AuditEntiteEnum.CONTRAT.value,
+            AuditLog.entite_id.in_(contrat_ids),
+            AuditLog.action.in_([
+                AuditActionEnum.STATUS_CHANGE.value,
+                AuditActionEnum.CREATE.value,
+                AuditActionEnum.UPDATE.value,
+            ])
+        )
+        .order_by(AuditLog.date_action.desc())
+        .all()
+    )
+
+    result = []
+    contrats_with_creation_log = set()
+
+    for log in logs:
+        ancien_statut = None
+        nouveau_statut = None
+
+        if log.action == AuditActionEnum.STATUS_CHANGE.value:
+            if log.anciennes_valeurs and "statut" in log.anciennes_valeurs:
+                ancien_statut = log.anciennes_valeurs["statut"]
+            if log.nouvelles_valeurs and "statut" in log.nouvelles_valeurs:
+                nouveau_statut = log.nouvelles_valeurs["statut"]
+            if not nouveau_statut and "→" in (log.description or ""):
+                parts = log.description.split("→")
+                if len(parts) == 2:
+                    nouveau_statut = parts[1].strip()
+                    ancien_statut = parts[0].split(":")[-1].strip()
+        elif log.action == AuditActionEnum.CREATE.value:
+            contrats_with_creation_log.add(log.entite_id)
+            if log.nouvelles_valeurs and "statut" in log.nouvelles_valeurs:
+                nouveau_statut = log.nouvelles_valeurs["statut"]
+            elif log.entite_id in contrat_map:
+                nouveau_statut = contrat_map[log.entite_id].statut
+            else:
+                nouveau_statut = "Brouillon"
+            ancien_statut = None
+        elif log.action == AuditActionEnum.UPDATE.value:
+            if (log.nouvelles_valeurs and "statut" in log.nouvelles_valeurs) or (log.anciennes_valeurs and "statut" in log.anciennes_valeurs):
+                nouveau_statut = log.nouvelles_valeurs.get("statut") if log.nouvelles_valeurs else None
+                ancien_statut = log.anciennes_valeurs.get("statut") if log.anciennes_valeurs else None
+            else:
+                continue
+
+        if not ancien_statut and not nouveau_statut:
+            continue
+
+        contrat_obj = contrat_map.get(log.entite_id)
+        ref = contrat_obj.reference if contrat_obj else f"CTR-{log.entite_id}"
+        nom_auteur = f"{log.utilisateur.prenom} {log.utilisateur.nom}" if log.utilisateur else "Système"
+
+        result.append(ContratHistoriqueStatutResponse(
+            id=log.id,
+            contrat_id=log.entite_id,
+            contrat_reference=ref,
+            action=log.action,
+            ancien_statut=ancien_statut,
+            nouveau_statut=nouveau_statut,
+            description=log.description or f"Changement de statut: {ancien_statut} → {nouveau_statut}",
+            date_action=log.date_action,
+            utilisateur_id=log.utilisateur_id,
+            utilisateur_nom=nom_auteur,
+        ))
+
+    for c in contrats:
+        if c.id not in contrats_with_creation_log:
+            c_date = datetime.combine(c.date_creation, datetime.min.time()) if isinstance(c.date_creation, date) else c.date_creation
+            result.append(ContratHistoriqueStatutResponse(
+                id=c.id * 1000000,
+                contrat_id=c.id,
+                contrat_reference=c.reference,
+                action="CREATE",
+                ancien_statut=None,
+                nouveau_statut=c.statut,
+                description=f"Création du contrat {c.reference} (Statut initial: {c.statut})",
+                date_action=c_date,
+                utilisateur_id=None,
+                utilisateur_nom="Système",
+            ))
+
+    result.sort(key=lambda x: x.date_action, reverse=True)
+    return result
+
+
+@router.get("/{contrat_id}/historique-statuts", response_model=List[ContratHistoriqueStatutResponse])
+def get_historique_statuts_contrat(
+    contrat_id: int,
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(require_any_role("RH", "ADMIN"))
+):
+    """
+    Récupérer l'historique chronologique des modifications de statut
+    pour un contrat spécifique.
+    """
+    contrat = db.query(Contrat).filter(Contrat.id == contrat_id).first()
+    if not contrat:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contrat non trouvé")
+
+    logs = (
+        db.query(AuditLog)
+        .options(joinedload(AuditLog.utilisateur))
+        .filter(
+            AuditLog.entite == AuditEntiteEnum.CONTRAT.value,
+            AuditLog.entite_id == contrat_id,
+            AuditLog.action.in_([
+                AuditActionEnum.STATUS_CHANGE.value,
+                AuditActionEnum.CREATE.value,
+                AuditActionEnum.UPDATE.value,
+            ])
+        )
+        .order_by(AuditLog.date_action.desc())
+        .all()
+    )
+
+    result = []
+    has_creation_log = False
+
+    for log in logs:
+        ancien_statut = None
+        nouveau_statut = None
+
+        if log.action == AuditActionEnum.STATUS_CHANGE.value:
+            if log.anciennes_valeurs and "statut" in log.anciennes_valeurs:
+                ancien_statut = log.anciennes_valeurs["statut"]
+            if log.nouvelles_valeurs and "statut" in log.nouvelles_valeurs:
+                nouveau_statut = log.nouvelles_valeurs["statut"]
+            if not nouveau_statut and "→" in (log.description or ""):
+                parts = log.description.split("→")
+                if len(parts) == 2:
+                    nouveau_statut = parts[1].strip()
+                    ancien_statut = parts[0].split(":")[-1].strip()
+        elif log.action == AuditActionEnum.CREATE.value:
+            has_creation_log = True
+            if log.nouvelles_valeurs and "statut" in log.nouvelles_valeurs:
+                nouveau_statut = log.nouvelles_valeurs["statut"]
+            else:
+                nouveau_statut = contrat.statut
+            ancien_statut = None
+        elif log.action == AuditActionEnum.UPDATE.value:
+            if (log.nouvelles_valeurs and "statut" in log.nouvelles_valeurs) or (log.anciennes_valeurs and "statut" in log.anciennes_valeurs):
+                nouveau_statut = log.nouvelles_valeurs.get("statut") if log.nouvelles_valeurs else None
+                ancien_statut = log.anciennes_valeurs.get("statut") if log.anciennes_valeurs else None
+            else:
+                continue
+
+        if not ancien_statut and not nouveau_statut:
+            continue
+
+        nom_auteur = f"{log.utilisateur.prenom} {log.utilisateur.nom}" if log.utilisateur else "Système"
+        result.append(ContratHistoriqueStatutResponse(
+            id=log.id,
+            contrat_id=contrat_id,
+            contrat_reference=contrat.reference,
+            action=log.action,
+            ancien_statut=ancien_statut,
+            nouveau_statut=nouveau_statut,
+            description=log.description or f"Changement de statut: {ancien_statut} → {nouveau_statut}",
+            date_action=log.date_action,
+            utilisateur_id=log.utilisateur_id,
+            utilisateur_nom=nom_auteur,
+        ))
+
+    if not has_creation_log:
+        c_date = datetime.combine(contrat.date_creation, datetime.min.time()) if isinstance(contrat.date_creation, date) else contrat.date_creation
+        result.append(ContratHistoriqueStatutResponse(
+            id=contrat.id * 1000000,
+            contrat_id=contrat.id,
+            contrat_reference=contrat.reference,
+            action="CREATE",
+            ancien_statut=None,
+            nouveau_statut=contrat.statut,
+            description=f"Création du contrat {contrat.reference} (Statut initial: {contrat.statut})",
+            date_action=c_date,
+            utilisateur_id=None,
+            utilisateur_nom="Système",
+        ))
+
+    result.sort(key=lambda x: x.date_action, reverse=True)
+    return result
+
+
 @router.get("/{contrat_id}", response_model=ContratResponse)
 def get_contrat(
     contrat_id: int,
@@ -105,6 +312,7 @@ def get_contrat(
     if not contrat:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contrat non trouvé")
     return contrat
+
 
 
 def verifier_compatibilite_articles(articles: List[Article], type_contrat: str) -> None:
