@@ -107,12 +107,15 @@ export function StructuredBlocksRenderer({ data }) {
   );
 }
 
+const TYPES_CONTRAT_OPTIONS = ['CDI', 'CDD', 'STAGE', 'ALTERNANCE', 'CIVP'];
+
 export default function ArticlesList() {
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterActif, setFilterActif] = useState('Tous');
+  const [filterTypeContrat, setFilterTypeContrat] = useState('Tous');
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -121,7 +124,7 @@ export default function ArticlesList() {
   // Modal CRUD
   const [showModal, setShowModal] = useState(false);
   const [editingArticle, setEditingArticle] = useState(null);
-  const [formData, setFormData] = useState({ code: '', titre: '', contenu_par_defaut: '' });
+  const [formData, setFormData] = useState({ code: '', titre: '', contenu_par_defaut: '', types_contrat: [] });
   const [formError, setFormError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
   const [viewTab, setViewTab] = useState('preview'); // 'preview' | 'code'
@@ -155,7 +158,10 @@ export default function ArticlesList() {
     const matchActif = filterActif === 'Tous' ||
       (filterActif === 'Actifs' && art.est_actif) ||
       (filterActif === 'Inactifs' && !art.est_actif);
-    return matchSearch && matchActif;
+    const matchType = filterTypeContrat === 'Tous' ||
+      (!art.types_contrat || art.types_contrat.length === 0) ||
+      (Array.isArray(art.types_contrat) && art.types_contrat.includes(filterTypeContrat));
+    return matchSearch && matchActif && matchType;
   });
 
   // Pagination
@@ -165,7 +171,7 @@ export default function ArticlesList() {
     currentPage * itemsPerPage
   );
 
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, filterActif]);
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, filterActif, filterTypeContrat]);
 
   // Génération du prochain code ART-XXX
   const generateNextCode = () => {
@@ -180,7 +186,7 @@ export default function ArticlesList() {
   // CRUD handlers
   const openCreateModal = () => {
     setEditingArticle(null);
-    setFormData({ code: generateNextCode(), titre: '', contenu_par_defaut: '' });
+    setFormData({ code: generateNextCode(), titre: '', contenu_par_defaut: '', types_contrat: [] });
     setFormError('');
     setAiPrompt('');
     setAiError('');
@@ -194,7 +200,8 @@ export default function ArticlesList() {
     setFormData({
       code: article.code,
       titre: article.titre,
-      contenu_par_defaut: article.contenu_par_defaut || ''
+      contenu_par_defaut: article.contenu_par_defaut || '',
+      types_contrat: Array.isArray(article.types_contrat) ? [...article.types_contrat] : []
     });
     setFormError('');
     setAiPrompt('');
@@ -202,6 +209,27 @@ export default function ArticlesList() {
     setAiResult(null);
     setViewTab(tryParseStructured(article.contenu_par_defaut) ? 'preview' : 'code');
     setShowModal(true);
+  };
+
+  const handleToggleContractType = (type) => {
+    setFormData(prev => {
+      const current = prev.types_contrat || [];
+      const updated = current.includes(type)
+        ? current.filter(t => t !== type)
+        : [...current, type];
+      return { ...prev, types_contrat: updated };
+    });
+  };
+
+  const handleToggleAllContractTypes = () => {
+    setFormData(prev => {
+      const current = prev.types_contrat || [];
+      if (current.length === TYPES_CONTRAT_OPTIONS.length) {
+        return { ...prev, types_contrat: [] };
+      } else {
+        return { ...prev, types_contrat: [...TYPES_CONTRAT_OPTIONS] };
+      }
+    });
   };
 
   const closeModal = () => {
@@ -219,10 +247,16 @@ export default function ArticlesList() {
     setFormLoading(true);
 
     try {
+      const payload = {
+        ...formData,
+        types_contrat: (formData.types_contrat && formData.types_contrat.length > 0)
+          ? formData.types_contrat
+          : null
+      };
       if (editingArticle) {
-        await api.put(`/articles/${editingArticle.id}`, formData);
+        await api.put(`/articles/${editingArticle.id}`, payload);
       } else {
-        await api.post('/articles/', formData);
+        await api.post('/articles/', payload);
       }
       closeModal();
       fetchArticles();
@@ -407,6 +441,19 @@ export default function ArticlesList() {
                   <option>Inactifs</option>
                 </select>
               </div>
+              <div className="articles-filter-group">
+                <span className="articles-filter-label">Type de contrat</span>
+                <select
+                  value={filterTypeContrat}
+                  onChange={(e) => setFilterTypeContrat(e.target.value)}
+                  className="articles-filter-select"
+                >
+                  <option value="Tous">Tous</option>
+                  {TYPES_CONTRAT_OPTIONS.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
               <div className="articles-filter-actions">
                 <button className="articles-add-btn" onClick={openCreateModal}>
                   <Plus size={18} />
@@ -429,6 +476,7 @@ export default function ArticlesList() {
                     <tr>
                       <th>Code</th>
                       <th>Titre</th>
+                      <th>Types compatibles</th>
                       <th>Aperçu du contenu</th>
                       <th>Statut</th>
                       <th>Dernière modification</th>
@@ -442,6 +490,19 @@ export default function ArticlesList() {
                           <span className="article-code-badge">{article.code}</span>
                         </td>
                         <td className="article-titre-cell">{article.titre}</td>
+                        <td>
+                          {article.types_contrat && Array.isArray(article.types_contrat) && article.types_contrat.length > 0 ? (
+                            <div className="article-contract-types-badges">
+                              {article.types_contrat.map(t => (
+                                <span key={t} className={`contract-type-badge-pill ${t.toLowerCase()}`}>
+                                  {t}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="contract-type-badge-pill all">Tous types</span>
+                          )}
+                        </td>
                         <td className="article-contenu-cell">
                           {(() => {
                             const structured = tryParseStructured(article.contenu_par_defaut);
@@ -567,6 +628,47 @@ export default function ArticlesList() {
                   />
                 </div>
               </div>
+
+              <div className="contract-types-selector-wrapper">
+                <div className="contract-types-selector-header">
+                  <span className="contract-types-selector-title">
+                    <Layers size={14} /> Types de contrat compatibles
+                  </span>
+                  <button
+                    type="button"
+                    className="contract-types-toggle-all-btn"
+                    onClick={handleToggleAllContractTypes}
+                  >
+                    {(formData.types_contrat || []).length === TYPES_CONTRAT_OPTIONS.length
+                      ? 'Désélectionner tout'
+                      : 'Tous les types'}
+                  </button>
+                </div>
+                <div className="contract-types-checkboxes-grid">
+                  {TYPES_CONTRAT_OPTIONS.map(tc => {
+                    const isChecked = (formData.types_contrat || []).includes(tc);
+                    return (
+                      <label
+                        key={tc}
+                        className={`contract-type-checkbox-item ${isChecked ? 'checked' : ''}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleContractType(tc)}
+                        />
+                        <span>{tc}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="contract-types-help">
+                  {(formData.types_contrat || []).length === 0
+                    ? '✓ Aucun type restreint : cette clause sera utilisable pour tous les contrats (CDI, CDD, STAGE, ALTERNANCE, CIVP).'
+                    : `Clause restreinte aux types : ${(formData.types_contrat || []).join(', ')}.`}
+                </p>
+              </div>
+
               <div className="form-group">
                 <div className="contenu-header-with-tabs">
                   <label><AlignLeft size={14} /> Contenu par défaut</label>

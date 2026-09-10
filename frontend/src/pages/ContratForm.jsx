@@ -84,7 +84,15 @@ function getAvailableStatuts(statutActuel, typeContrat) {
 }
 
 
-const TYPES_CONTRAT = ['CDI', 'CDD', 'STAGE', 'ALTERNANCE'];
+const TYPES_CONTRAT = ['CDI', 'CDD', 'STAGE', 'ALTERNANCE', 'CIVP'];
+
+function isArticleCompatible(article, type) {
+  if (!type) return true;
+  if (!article.types_contrat || !Array.isArray(article.types_contrat) || article.types_contrat.length === 0) {
+    return true; // Compatible avec tous les types (générique)
+  }
+  return article.types_contrat.map(t => String(t).toUpperCase()).includes(String(type).toUpperCase());
+}
 
 const STEPS = [
   { id: 1, label: 'Employé',      icon: User },
@@ -172,10 +180,19 @@ export default function ContratForm() {
   };
 
   // Changer de type de contrat : reinitialiser la date de fin si on passe a CDI
+  // et deselectionner automatiquement les articles incompatibles
   const handleTypeContratChange = (value) => {
     setTypeContrat(value);
     if (value === 'CDI') {
       setDateFin('');
+    }
+    if (value) {
+      setSelectedArticleIds(prev =>
+        prev.filter(id => {
+          const art = articles.find(a => a.id === id);
+          return art ? isArticleCompatible(art, value) : true;
+        })
+      );
     }
   };
 
@@ -259,7 +276,8 @@ export default function ContratForm() {
       .toLowerCase().includes(searchEmploye.toLowerCase())
   );
 
-  const filteredArticles = articles.filter(a =>
+  const compatibleArticles = articles.filter(a => isArticleCompatible(a, typeContrat));
+  const filteredArticles = compatibleArticles.filter(a =>
     `${a.code} ${a.titre} ${a.contenu_par_defaut || ''}`
       .toLowerCase().includes(searchArticle.toLowerCase())
   );
@@ -527,8 +545,12 @@ export default function ContratForm() {
 
                 {loadingArticles ? (
                   <div className="cf-loading"><Loader2 size={20} className="cf-spin" /> Chargement...</div>
+                ) : compatibleArticles.length === 0 ? (
+                  <p className="cf-empty-msg">
+                    Aucun article spécifique n'est actuellement disponible pour ce type de contrat ({typeContrat || 'sélectionné'}).
+                  </p>
                 ) : filteredArticles.length === 0 ? (
-                  <p className="cf-empty-msg">Aucun article actif trouvé.</p>
+                  <p className="cf-empty-msg">Aucun article ne correspond à votre recherche.</p>
                 ) : (
                   <div className="cf-articles-list">
                     {filteredArticles.map(a => {
@@ -546,6 +568,15 @@ export default function ContratForm() {
                             <div className="cf-article-header-row">
                               <span className="cf-article-code">{a.code}</span>
                               <span className="cf-article-titre">{a.titre}</span>
+                              {a.types_contrat && Array.isArray(a.types_contrat) && a.types_contrat.length > 0 ? (
+                                <span className="cf-article-types-badge">
+                                  {a.types_contrat.map(t => (
+                                    <span key={t} className="cf-article-badge-item">{t}</span>
+                                  ))}
+                                </span>
+                              ) : (
+                                <span className="cf-article-types-badge generic">Tous types</span>
+                              )}
                             </div>
                             {a.contenu_par_defaut && (
                               <p className="cf-article-preview">

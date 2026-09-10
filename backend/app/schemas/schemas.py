@@ -109,12 +109,14 @@ class ArticleCreate(BaseModel):
     code: str = Field(..., min_length=2, max_length=20)
     titre: str = Field(..., min_length=2, max_length=200)
     contenu_par_defaut: Optional[str] = None
+    types_contrat: Optional[List[str]] = None
 
 class ArticleUpdate(BaseModel):
     code: Optional[str] = None
     titre: Optional[str] = None
     contenu_par_defaut: Optional[str] = None
     est_actif: Optional[bool] = None
+    types_contrat: Optional[List[str]] = None
 
 class ArticleResponse(BaseModel):
     id: int
@@ -122,6 +124,7 @@ class ArticleResponse(BaseModel):
     titre: str
     contenu_par_defaut: Optional[str] = None
     est_actif: bool
+    types_contrat: Optional[List[str]] = None
     modifie_le: Optional[datetime] = None
 
     class Config:
@@ -144,7 +147,7 @@ class ContratCreate(BaseModel):
         """
         Regle metier :
         - CDI : la date de fin doit toujours etre NULL (forcee ici, meme si envoyee).
-        - CDD / STAGE / ALTERNANCE : la date de fin est obligatoire et doit etre
+        - CDD / STAGE / ALTERNANCE / CIVP : la date de fin est obligatoire et doit etre
           strictement posterieure a la date de debut.
         """
         if self.type_contrat == TypeContratEnum.CDI:
@@ -152,7 +155,7 @@ class ContratCreate(BaseModel):
         else:
             if not self.date_fin:
                 raise ValueError(
-                    "La date de fin est obligatoire pour un contrat de type CDD, STAGE ou ALTERNANCE."
+                    "La date de fin est obligatoire pour un contrat de type CDD, STAGE, ALTERNANCE ou CIVP."
                 )
             if self.date_fin <= self.date_debut:
                 raise ValueError("La date de fin doit etre posterieure a la date de debut.")

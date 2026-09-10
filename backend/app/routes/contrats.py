@@ -107,6 +107,27 @@ def get_contrat(
     return contrat
 
 
+def verifier_compatibilite_articles(articles: List[Article], type_contrat: str) -> None:
+    """
+    Vérifie que chaque article est compatible avec le type de contrat spécifié.
+    Un article sans restriction (types_contrat None ou vide) est compatible avec tous les types.
+    """
+    if not articles:
+        return
+    tc_val = type_contrat.value if hasattr(type_contrat, "value") else str(type_contrat).upper()
+    incompatibles = []
+    for art in articles:
+        if art.types_contrat:
+            types_compatibles = [t.upper() for t in art.types_contrat]
+            if tc_val not in types_compatibles:
+                incompatibles.append(f"'{art.titre}' (compatible : {', '.join(types_compatibles)})")
+    if incompatibles:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Articles incompatibles avec le type de contrat {tc_val} : {'; '.join(incompatibles)}"
+        )
+
+
 @router.post("/", response_model=ContratResponse, status_code=status.HTTP_201_CREATED)
 def create_contrat(
     data: ContratCreate,
@@ -141,6 +162,7 @@ def create_contrat(
 
     if data.article_ids:
         articles = db.query(Article).filter(Article.id.in_(data.article_ids)).all()
+        verifier_compatibilite_articles(articles, data.type_contrat.value)
         contrat.articles = articles
 
     db.commit()
@@ -316,7 +338,7 @@ def update_contrat(
         if nouveau_statut == StatutContratEnum.DEMISSION_CDI.value and tc_final != TypeContratEnum.CDI.value:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Le statut 'Démission (CDI)' ne s'applique pas à un contrat CDD, STAGE ou ALTERNANCE."
+                detail="Le statut 'Démission (CDI)' ne s'applique pas à un contrat CDD, STAGE, ALTERNANCE ou CIVP."
             )
 
         autorises = get_allowed_transitions(statut_actuel, tc_final)
@@ -344,6 +366,9 @@ def update_contrat(
         ids = update_data["article_ids"] or []
         contrat.articles = db.query(Article).filter(Article.id.in_(ids)).all() if ids else []
 
+    if "article_ids" in update_data or "type_contrat" in update_data:
+        verifier_compatibilite_articles(contrat.articles, contrat.type_contrat)
+
     # Regle metier : coherence type_contrat / date_fin, verifiee sur l'etat final
     # du contrat (que les champs impactes aient ete envoyes ou non dans cette requete).
     if contrat.type_contrat == TypeContratEnum.CDI.value:
@@ -352,7 +377,7 @@ def update_contrat(
         if not contrat.date_fin:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="La date de fin est obligatoire pour un contrat CDD, STAGE ou ALTERNANCE."
+                detail="La date de fin est obligatoire pour un contrat CDD, STAGE, ALTERNANCE ou CIVP."
             )
         if contrat.date_fin <= contrat.date_debut:
             raise HTTPException(

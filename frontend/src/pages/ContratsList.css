@@ -264,6 +264,46 @@
   color: #64748b;
 }
 
+/* ===== TYPE DE CONTRAT BADGE ===== */
+.contrat-type-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.contrat-type-badge.cdi {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.contrat-type-badge.cdd {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.contrat-type-badge.stage {
+  background: #f3e8ff;
+  color: #7e22ce;
+  border: 1px solid #e9d5ff;
+}
+
+.contrat-type-badge.alternance {
+  background: #fce7f3;
+  color: #be185d;
+  border: 1px solid #fbcfe8;
+}
+
+.contrat-type-badge.civp {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
 /* ===== BOUTON GENERER WORD ===== */
 .action-circle-btn-word {
   display: flex;

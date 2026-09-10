@@ -16,6 +16,7 @@ class TypeContratEnum(str, enum.Enum):
     CDD = "CDD"
     STAGE = "STAGE"
     ALTERNANCE = "ALTERNANCE"
+    CIVP = "CIVP"
 
 
 class StatutContratEnum(str, enum.Enum):
@@ -132,6 +133,7 @@ class Article(Base):
     titre = Column(String, nullable=False)
     contenu_par_defaut = Column(Text, nullable=True)
     est_actif = Column(Boolean, default=True)
+    types_contrat = Column(JSONB, nullable=True, default=None)
     modifie_le = Column(DateTime, nullable=True, default=datetime.utcnow)
 
 

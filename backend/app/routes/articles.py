@@ -16,9 +16,10 @@ router = APIRouter(prefix="/api/articles", tags=["Articles"])
 def get_articles(
     search: Optional[str] = Query(None),
     actif_only: Optional[bool] = Query(None),
+    type_contrat: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """Recuperer la liste des articles avec recherche optionnelle."""
+    """Recuperer la liste des articles avec recherche et filtrage par type de contrat optionnels."""
     query = db.query(Article)
 
     if search:
@@ -32,6 +33,14 @@ def get_articles(
         query = query.filter(Article.est_actif == actif_only)
 
     articles = query.order_by(Article.code).all()
+
+    if type_contrat:
+        tc = type_contrat.strip().upper()
+        articles = [
+            a for a in articles
+            if not a.types_contrat or len(a.types_contrat) == 0 or tc in [str(t).upper() for t in a.types_contrat]
+        ]
+
     return articles
 
 
@@ -65,10 +74,17 @@ def create_article(
             detail=f"Un article avec le code '{article_data.code}' existe deja."
         )
 
+    tc_list = None
+    if article_data.types_contrat is not None:
+        tc_list = [str(t).strip().upper() for t in article_data.types_contrat if str(t).strip()]
+        if len(tc_list) == 0:
+            tc_list = None
+
     new_article = Article(
         code=article_data.code.strip().upper(),
         titre=article_data.titre.strip(),
         contenu_par_defaut=article_data.contenu_par_defaut,
+        types_contrat=tc_list,
         est_actif=True,
         modifie_le=datetime.utcnow()
     )
@@ -87,6 +103,7 @@ def create_article(
             "code": new_article.code,
             "titre": new_article.titre,
             "est_actif": new_article.est_actif,
+            "types_contrat": new_article.types_contrat,
         },
         request=request,
     )
@@ -115,6 +132,7 @@ def update_article(
         "titre": article.titre,
         "contenu_par_defaut": article.contenu_par_defaut,
         "est_actif": article.est_actif,
+        "types_contrat": article.types_contrat,
     }
 
     if article_data.code is not None:
@@ -136,6 +154,9 @@ def update_article(
         article.contenu_par_defaut = article_data.contenu_par_defaut
     if article_data.est_actif is not None:
         article.est_actif = article_data.est_actif
+    if article_data.types_contrat is not None:
+        tc_list = [str(t).strip().upper() for t in article_data.types_contrat if str(t).strip()]
+        article.types_contrat = tc_list if len(tc_list) > 0 else None
 
     article.modifie_le = datetime.utcnow()
 

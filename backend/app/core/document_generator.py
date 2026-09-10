@@ -151,7 +151,10 @@ def generer_contrat_word(contrat) -> io.BytesIO:
         row.cells[1].text = value
         row.cells[0].paragraphs[0].runs[0].bold = True
 
-    add_row("Référence du contrat", contrat.reference)
+    add_row("Référence du contrat", getattr(contrat, "reference", "-"))
+    tc = getattr(contrat, "type_contrat", None)
+    if tc:
+        add_row("Type de contrat", str(tc))
     add_row("Date de début", _format_date(contrat.date_debut))
     add_row("Date de fin", _format_date(contrat.date_fin) if contrat.date_fin else "Durée indéterminée")
     add_row("Salaire mensuel brut", _format_montant(contrat.salaire_mensuel))

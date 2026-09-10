@@ -78,12 +78,13 @@ export default function ContratsList() {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatut, setFilterStatut] = useState('Tous');
+  const [filterTypeContrat, setFilterTypeContrat] = useState('Tous');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
   const [downloadingId, setDownloadingId] = useState(null);
 
   useEffect(() => { fetchContrats(); }, []);
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, filterStatut]);
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, filterStatut, filterTypeContrat]);
 
   const fetchContrats = async () => {
     try {
@@ -105,7 +106,8 @@ export default function ContratsList() {
     const fullText = `${c.reference} ${c.employe?.nom || ''} ${c.employe?.prenom || ''} ${c.employe?.matricule || ''}`.toLowerCase();
     const matchSearch = fullText.includes(searchTerm.toLowerCase());
     const matchStatut = filterStatut === 'Tous' || c.statut === filterStatut || (filterStatut === 'INACTIF' && ['Suspendu', 'Terminé'].includes(c.statut));
-    return matchSearch && matchStatut;
+    const matchType = filterTypeContrat === 'Tous' || c.type_contrat === filterTypeContrat;
+    return matchSearch && matchStatut && matchType;
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
@@ -256,6 +258,21 @@ export default function ContratsList() {
                   ))}
                 </select>
               </div>
+              <div className="contrats-filter-group">
+                <span className="contrats-filter-label">Type</span>
+                <select
+                  value={filterTypeContrat}
+                  onChange={e => setFilterTypeContrat(e.target.value)}
+                  className="contrats-filter-select"
+                >
+                  <option value="Tous">Tous</option>
+                  <option value="CDI">CDI</option>
+                  <option value="CDD">CDD</option>
+                  <option value="STAGE">STAGE</option>
+                  <option value="ALTERNANCE">ALTERNANCE</option>
+                  <option value="CIVP">CIVP</option>
+                </select>
+              </div>
               <div className="contrats-filter-actions">
                 <button
                   className="contrats-add-btn"
@@ -281,6 +298,7 @@ export default function ContratsList() {
                     <tr>
                       <th>Référence</th>
                       <th>Employé</th>
+                      <th>Type</th>
                       <th>Date début</th>
                       <th>Date fin</th>
                       <th>Salaire mensuel</th>
@@ -306,6 +324,11 @@ export default function ContratsList() {
                               </div>
                             </div>
                           ) : '—'}
+                        </td>
+                        <td>
+                          <span className={`contrat-type-badge ${c.type_contrat?.toLowerCase() || ''}`}>
+                            {c.type_contrat}
+                          </span>
                         </td>
                         <td className="contrat-date-cell">
                           <div className="contrat-date-wrapper">
