@@ -77,6 +77,7 @@ export default function EmployesList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDepartement, setFilterDepartement] = useState('Tous');
   const [filterPoste, setFilterPoste] = useState('Tous');
+  const [filterStatutRH, setFilterStatutRH] = useState('Tous');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [loading, setLoading] = useState(true);
@@ -115,6 +116,7 @@ export default function EmployesList() {
     setSearchTerm('');
     setFilterDepartement('Tous');
     setFilterPoste('Tous');
+    setFilterStatutRH('Tous');
     setSortField('');
     setSortOrder('asc');
     setCurrentPage(1);
@@ -134,6 +136,8 @@ export default function EmployesList() {
 
   // Stats calculation
   const totalEmployes = employes.length;
+  const countEmployes = employes.filter(emp => (emp.statut_rh || 'Candidat') === 'Employé').length;
+  const countCandidats = employes.filter(emp => (emp.statut_rh || 'Candidat') !== 'Employé').length;
   const totalDepts = new Set(employes.map(emp => emp.departement).filter(Boolean)).size;
   const totalPostes = new Set(employes.map(emp => emp.poste).filter(Boolean)).size;
   
@@ -156,11 +160,13 @@ export default function EmployesList() {
 
   // Filtering logic
   const filteredEmployes = employes.filter(emp => {
-    const matchSearch = `${emp.nom} ${emp.prenom} ${emp.matricule} ${emp.departement || ''} ${emp.poste || ''}`
+    const statut = emp.statut_rh || 'Candidat';
+    const matchSearch = `${emp.nom} ${emp.prenom} ${emp.matricule} ${emp.departement || ''} ${emp.poste || ''} ${statut}`
       .toLowerCase().includes(searchTerm.toLowerCase());
     const matchDept = filterDepartement === 'Tous' || emp.departement === filterDepartement;
     const matchPoste = filterPoste === 'Tous' || emp.poste === filterPoste;
-    return matchSearch && matchDept && matchPoste;
+    const matchStatut = filterStatutRH === 'Tous' || statut === filterStatutRH;
+    return matchSearch && matchDept && matchPoste && matchStatut;
   });
 
   // Sorting logic
@@ -190,7 +196,7 @@ export default function EmployesList() {
   const paginatedEmployes = sortedEmployes.slice(startIndex, startIndex + itemsPerPage);
 
   // Reset page when filtering or items per page changes
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, filterDepartement, filterPoste, itemsPerPage]);
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, filterDepartement, filterPoste, filterStatutRH, itemsPerPage]);
 
   const renderPageNumbers = () => {
     const pages = [];
@@ -241,9 +247,9 @@ export default function EmployesList() {
                 <Users size={22} className="stat-icon" />
               </div>
               <div className="stat-details">
-                <span className="stat-label">Total employés</span>
+                <span className="stat-label">Total collaborateurs</span>
                 <span className="stat-value">{totalEmployes}</span>
-                <span className="stat-subtitle">Collaborateurs actifs</span>
+                <span className="stat-subtitle">{countEmployes} employé(s) · {countCandidats} candidat(s)</span>
               </div>
             </div>
 
@@ -290,7 +296,7 @@ export default function EmployesList() {
                   <Search className="input-search-icon" size={16} />
                   <input
                     type="text"
-                    placeholder="Nom, prénom, matricule, département, poste..."
+                    placeholder="Nom, prénom, matricule, département, poste, statut..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -309,6 +315,15 @@ export default function EmployesList() {
                 <select value={filterPoste} onChange={(e) => setFilterPoste(e.target.value)}>
                   <option value="Tous">Filtrer par poste</option>
                   {uniquePostes.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+
+              <div className="filter-group flex-1">
+                <label>Statut RH</label>
+                <select value={filterStatutRH} onChange={(e) => setFilterStatutRH(e.target.value)}>
+                  <option value="Tous">Tous</option>
+                  <option value="Employé">Employé (contrat actif)</option>
+                  <option value="Candidat">Candidat</option>
                 </select>
               </div>
               
@@ -368,6 +383,12 @@ export default function EmployesList() {
                           <ArrowUpDown size={12} className="sort-arrow-icon" />
                         </div>
                       </th>
+                      <th onClick={() => handleSort('statut_rh')} className="sortable-header">
+                        <div className="header-cell-content">
+                          Statut
+                          <ArrowUpDown size={12} className="sort-arrow-icon" />
+                        </div>
+                      </th>
                       <th onClick={() => handleSort('date_embauche')} className="sortable-header">
                         <div className="header-cell-content">
                           Date Embauche
@@ -417,6 +438,12 @@ export default function EmployesList() {
                           </td>
                           <td className="poste-cell">
                             {emp.poste || '—'}
+                          </td>
+                          <td className="statut-cell">
+                            <span className={`employe-statut-badge ${emp.statut_rh === 'Employé' ? 'statut-employe' : 'statut-candidat'}`}>
+                              <span className="statut-dot"></span>
+                              {emp.statut_rh || 'Candidat'}
+                            </span>
                           </td>
                           <td className="date-cell">
                             <div className="date-wrapper">

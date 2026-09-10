@@ -98,6 +98,7 @@ class UtilisateurResponse(BaseModel):
     departement: Optional[str] = None
     poste: Optional[str] = None
     role: str
+    statut_rh: Optional[str] = "Candidat"
 
     class Config:
         from_attributes = True

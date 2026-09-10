@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 from datetime import date
 import random
@@ -26,6 +26,13 @@ def generer_matricule(db: Session) -> str:
 
 
 def to_response(emp: Utilisateur) -> UtilisateurResponse:
+    contrats = getattr(emp, "contrats", None) or []
+    has_active_contract = any(
+        (getattr(c, "statut", None) or "").upper() == "ACTIF"
+        for c in contrats
+    )
+    statut_rh = "Employé" if has_active_contract else "Candidat"
+
     return UtilisateurResponse(
         id=emp.id,
         nom=emp.nom,
@@ -37,7 +44,8 @@ def to_response(emp: Utilisateur) -> UtilisateurResponse:
         telephone=emp.telephone,
         departement=emp.departement,
         poste=emp.poste,
-        role=emp.role.value
+        role=emp.role.value if hasattr(emp.role, "value") else str(emp.role),
+        statut_rh=statut_rh
     )
 
 
@@ -46,7 +54,7 @@ def lister_employes(
     db: Session = Depends(get_db),
     current_user: Utilisateur = Depends(require_any_role("RH", "ADMIN"))
 ):
-    employes = db.query(Utilisateur).all()
+    employes = db.query(Utilisateur).options(joinedload(Utilisateur.contrats)).all()
     return [to_response(emp) for emp in employes]
 
 
@@ -56,7 +64,7 @@ def lire_employe(
     db: Session = Depends(get_db),
     current_user: Utilisateur = Depends(require_any_role("RH", "ADMIN"))
 ):
-    employe = db.query(Utilisateur).filter(Utilisateur.id == employe_id).first()
+    employe = db.query(Utilisateur).options(joinedload(Utilisateur.contrats)).filter(Utilisateur.id == employe_id).first()
     if not employe:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employé non trouvé")
     return to_response(employe)
