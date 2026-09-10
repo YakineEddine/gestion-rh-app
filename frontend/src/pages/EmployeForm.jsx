@@ -27,10 +27,13 @@ const STATUT_LABELS = {
   RESILIE: 'Résilié',
   EXPIRE: 'Expiré',
   PAS_DISCUTE: 'Pas discuté',
+  INACTIF: 'Inactif (archivé)',
+  'Inactif (archivé)': 'Inactif (archivé)',
+  'Inactif': 'Inactif (archivé)',
   Brouillon: 'Brouillon',
   Actif: 'Actif',
   Suspendu: 'Suspendu',
-  Terminé: 'Terminé',
+  Terminé: 'Inactif (archivé)',
   Expiré: 'Expiré'
 };
 

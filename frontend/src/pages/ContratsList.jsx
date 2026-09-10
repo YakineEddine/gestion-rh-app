@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  FileText, Plus, Search, Edit2, Trash2, Download,
+  FileText, Plus, Search, Edit2, Archive, ArchiveRestore, Download,
   ChevronLeft, ChevronRight, Calendar, User, DollarSign, TrendingUp, Loader2
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
@@ -76,25 +76,58 @@ export default function ContratsList() {
   const [contrats, setContrats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatut, setFilterStatut] = useState('Tous');
   const [filterTypeContrat, setFilterTypeContrat] = useState('Tous');
+  const [filterArchivage, setFilterArchivage] = useState('ACTIFS'); // 'ACTIFS', 'ARCHIVES', 'TOUS'
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
   const [downloadingId, setDownloadingId] = useState(null);
 
-  useEffect(() => { fetchContrats(); }, []);
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, filterStatut, filterTypeContrat]);
-
-  const fetchContrats = async () => {
+  const fetchContrats = async (arch = filterArchivage) => {
     try {
       setLoading(true);
-      const res = await api.get('/contrats/');
+      setError('');
+      const res = await api.get('/contrats/', { params: { archivage: arch } });
       setContrats(res.data);
     } catch (err) {
       setError('Impossible de récupérer les contrats.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  useEffect(() => { 
+    fetchContrats(filterArchivage); 
+  }, [filterArchivage]);
+
+  useEffect(() => { 
+    setCurrentPage(1); 
+  }, [searchTerm, filterStatut, filterTypeContrat, filterArchivage]);
+
+  const handleArchive = async (id, ref) => {
+    const confirmationText = "Voulez-vous archiver cet élément ? Les données seront conservées et l'élément ne sera plus considéré comme actif.";
+    if (!window.confirm(confirmationText)) return;
+    try {
+      await api.post(`/contrats/${id}/archive`);
+      setSuccessMsg(`Le contrat ${ref} a été archivé avec succès.`);
+      setTimeout(() => setSuccessMsg(''), 4000);
+      fetchContrats(filterArchivage);
+    } catch (err) {
+      alert(err.response?.data?.detail || "Erreur lors de l'archivage.");
+    }
+  };
+
+  const handleRestore = async (id, ref) => {
+    if (!window.confirm(`Voulez-vous restaurer le contrat ${ref} ? Il retournera à son statut précédent selon sa période de validité.`)) return;
+    try {
+      await api.post(`/contrats/${id}/restaurer`);
+      setSuccessMsg(`Le contrat ${ref} a été restauré avec succès.`);
+      setTimeout(() => setSuccessMsg(''), 4000);
+      fetchContrats(filterArchivage);
+    } catch (err) {
+      alert(err.response?.data?.detail || "Erreur lors de la restauration.");
     }
   };
 
@@ -113,15 +146,6 @@ export default function ContratsList() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  const handleDelete = async (id, ref) => {
-    if (!window.confirm(`Supprimer le contrat ${ref} ? Cette action est irréversible.`)) return;
-    try {
-      await api.delete(`/contrats/${id}`);
-      fetchContrats();
-    } catch {
-      alert('Erreur lors de la suppression.');
-    }
-  };
 
   const handleGenererWord = async (id, ref) => {
     setDownloadingId(id);
@@ -273,6 +297,18 @@ export default function ContratsList() {
                   <option value="CIVP">CIVP</option>
                 </select>
               </div>
+              <div className="contrats-filter-group">
+                <span className="contrats-filter-label">Affichage</span>
+                <select
+                  value={filterArchivage}
+                  onChange={e => { setFilterArchivage(e.target.value); setCurrentPage(1); }}
+                  className="contrats-filter-select"
+                >
+                  <option value="ACTIFS">Actifs</option>
+                  <option value="ARCHIVES">Archivés</option>
+                  <option value="TOUS">Tous</option>
+                </select>
+              </div>
               <div className="contrats-filter-actions">
                 <button
                   className="contrats-add-btn"
@@ -283,6 +319,18 @@ export default function ContratsList() {
                 </button>
               </div>
             </div>
+
+            {successMsg && (
+              <div className="alert-success-banner glass-card" style={{ marginBottom: '16px' }}>
+                <span>{successMsg}</span>
+                <button 
+                  onClick={() => setSuccessMsg('')} 
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#065f46', fontWeight: 'bold' }}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
 
             {/* Table */}
             {loading ? (
@@ -371,13 +419,23 @@ export default function ContratsList() {
                             >
                               <Edit2 size={14} />
                             </button>
-                            <button
-                              onClick={() => handleDelete(c.id, c.reference)}
-                              className="action-circle-btn-delete"
-                              title="Supprimer"
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                            {['INACTIF', 'Inactif', 'Suspendu', 'Terminé'].includes(c.statut) ? (
+                              <button
+                                onClick={() => handleRestore(c.id, c.reference)}
+                                className="action-circle-btn-restore"
+                                title="Restaurer ce contrat"
+                              >
+                                <ArchiveRestore size={14} />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleArchive(c.id, c.reference)}
+                                className="action-circle-btn-archive"
+                                title="Archiver ce contrat"
+                              >
+                                <Archive size={14} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

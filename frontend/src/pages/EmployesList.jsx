@@ -12,7 +12,8 @@ import {
   Mail, 
   Eye, 
   Edit2, 
-  Trash2, 
+  Archive,
+  ArchiveRestore,
   ChevronLeft, 
   ChevronRight,
   Monitor,
@@ -78,19 +79,22 @@ export default function EmployesList() {
   const [filterDepartement, setFilterDepartement] = useState('Tous');
   const [filterPoste, setFilterPoste] = useState('Tous');
   const [filterStatutRH, setFilterStatutRH] = useState('Tous');
+  const [filterArchivage, setFilterArchivage] = useState('ACTIFS'); // 'ACTIFS', 'ARCHIVES', 'TOUS'
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   // Sorting state
   const [sortField, setSortField] = useState('');
   const [sortOrder, setSortOrder] = useState('asc');
 
-  const fetchEmployes = async () => {
+  const fetchEmployes = async (arch = filterArchivage) => {
     try {
       setLoading(true);
-      const response = await api.get('/employes');
+      setError('');
+      const response = await api.get('/employes', { params: { statut: arch } });
       setEmployes(response.data);
     } catch (err) {
       setError('Impossible de récupérer la liste des employés.');
@@ -99,15 +103,33 @@ export default function EmployesList() {
     }
   };
 
-  useEffect(() => { fetchEmployes(); }, []);
+  useEffect(() => { 
+    fetchEmployes(filterArchivage); 
+  }, [filterArchivage]);
 
-  const handleDelete = async (id) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer cet employé ?')) {
+  const handleArchive = async (id, nomComplet) => {
+    const confirmationText = "Voulez-vous archiver cet élément ? Les données seront conservées et l'élément ne sera plus considéré comme actif.";
+    if (window.confirm(confirmationText)) {
       try {
-        await api.delete(`/employes/${id}`);
-        setEmployes(employes.filter(emp => emp.id !== id));
+        await api.post(`/employes/${id}/archive`);
+        setSuccessMsg(`L'employé ${nomComplet || ''} a été archivé avec succès.`);
+        setTimeout(() => setSuccessMsg(''), 4000);
+        fetchEmployes(filterArchivage);
       } catch (err) {
-        alert(err.response?.data?.detail || 'Erreur lors de la suppression.');
+        alert(err.response?.data?.detail || "Erreur lors de l'archivage.");
+      }
+    }
+  };
+
+  const handleRestore = async (id, nomComplet) => {
+    if (window.confirm(`Voulez-vous restaurer cet employé (${nomComplet || ''}) ? Il sera de nouveau considéré comme actif.`)) {
+      try {
+        await api.post(`/employes/${id}/restaurer`);
+        setSuccessMsg(`L'employé ${nomComplet || ''} a été restauré avec succès.`);
+        setTimeout(() => setSuccessMsg(''), 4000);
+        fetchEmployes(filterArchivage);
+      } catch (err) {
+        alert(err.response?.data?.detail || "Erreur lors de la restauration.");
       }
     }
   };
@@ -117,6 +139,7 @@ export default function EmployesList() {
     setFilterDepartement('Tous');
     setFilterPoste('Tous');
     setFilterStatutRH('Tous');
+    setFilterArchivage('ACTIFS');
     setSortField('');
     setSortOrder('asc');
     setCurrentPage(1);
@@ -326,6 +349,22 @@ export default function EmployesList() {
                   <option value="Candidat">Candidat</option>
                 </select>
               </div>
+
+              <div className="filter-group flex-1">
+                <label>Affichage</label>
+                <select 
+                  value={filterArchivage} 
+                  onChange={(e) => { 
+                    setFilterArchivage(e.target.value); 
+                    setCurrentPage(1); 
+                  }}
+                  className="archivage-filter-select"
+                >
+                  <option value="ACTIFS">Actifs</option>
+                  <option value="ARCHIVES">Archivés</option>
+                  <option value="TOUS">Tous</option>
+                </select>
+              </div>
               
               <div className="filter-actions-row">
                 <button className="reset-filters-btn-icon" onClick={handleReset} title="Réinitialiser">
@@ -339,6 +378,18 @@ export default function EmployesList() {
               </div>
             </div>
           </div>
+
+          {successMsg && (
+            <div className="alert-success-banner glass-card">
+              <span>{successMsg}</span>
+              <button 
+                onClick={() => setSuccessMsg('')} 
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#065f46', fontWeight: 'bold' }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           {/* Table Container */}
           <div className="table-card glass-card">
@@ -440,10 +491,17 @@ export default function EmployesList() {
                             {emp.poste || '—'}
                           </td>
                           <td className="statut-cell">
-                            <span className={`employe-statut-badge ${emp.statut_rh === 'Employé' ? 'statut-employe' : 'statut-candidat'}`}>
-                              <span className="statut-dot"></span>
-                              {emp.statut_rh || 'Candidat'}
-                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                              <span className={`employe-statut-badge ${emp.statut_rh === 'Employé' ? 'statut-employe' : 'statut-candidat'}`}>
+                                <span className="statut-dot"></span>
+                                {emp.statut_rh || 'Candidat'}
+                              </span>
+                              {emp.est_actif === false && (
+                                <span className="employe-archive-badge">
+                                  Archivé
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="date-cell">
                             <div className="date-wrapper">
@@ -471,13 +529,23 @@ export default function EmployesList() {
                               >
                                 <Edit2 size={14} />
                               </Link>
-                              <button 
-                                onClick={() => handleDelete(emp.id)} 
-                                className="action-circle-btn-delete"
-                                title="Supprimer"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                              {emp.est_actif === false ? (
+                                <button 
+                                  onClick={() => handleRestore(emp.id, `${emp.nom} ${emp.prenom}`)} 
+                                  className="action-circle-btn-restore"
+                                  title="Restaurer cet employé"
+                                >
+                                  <ArchiveRestore size={14} />
+                                </button>
+                              ) : (
+                                <button 
+                                  onClick={() => handleArchive(emp.id, `${emp.nom} ${emp.prenom}`)} 
+                                  className="action-circle-btn-archive"
+                                  title="Archiver cet employé"
+                                >
+                                  <Archive size={14} />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>

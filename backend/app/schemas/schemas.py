@@ -84,6 +84,7 @@ class UtilisateurUpdate(BaseModel):
     departement: Optional[str] = None
     poste: Optional[str] = None
     role: Optional[str] = None
+    est_actif: Optional[bool] = None
 
 
 class UtilisateurResponse(BaseModel):
@@ -98,6 +99,7 @@ class UtilisateurResponse(BaseModel):
     departement: Optional[str] = None
     poste: Optional[str] = None
     role: str
+    est_actif: bool = True
     statut_rh: Optional[str] = "Candidat"
 
     class Config:

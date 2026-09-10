@@ -35,6 +35,8 @@ class AuditActionEnum(str, enum.Enum):
     CREATE = "CREATE"
     UPDATE = "UPDATE"
     DELETE = "DELETE"
+    ARCHIVE = "ARCHIVE"
+    RESTORE = "RESTORE"
     LOGIN = "LOGIN"
     LOGIN_FAILED = "LOGIN_FAILED"
     LOGOUT = "LOGOUT"

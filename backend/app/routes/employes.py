@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from sqlalchemy.orm import Session, joinedload
-from typing import List
+from typing import List, Optional
 from datetime import date
 import random
 import string
@@ -8,7 +8,7 @@ import string
 from app.database import get_db
 from app.models.models import Utilisateur, RoleEnum, AuditActionEnum, AuditEntiteEnum
 from app.schemas.schemas import UtilisateurCreate, UtilisateurUpdate, UtilisateurResponse
-from app.core.security import hash_password, get_current_user, require_any_role
+from app.core.security import hash_password, get_current_user, require_any_role, revoke_all_user_refresh_tokens
 from app.core.audit_service import log_action, diff_valeurs
 
 router = APIRouter(prefix="/api/employes", tags=["Employés"])
@@ -45,16 +45,32 @@ def to_response(emp: Utilisateur) -> UtilisateurResponse:
         departement=emp.departement,
         poste=emp.poste,
         role=emp.role.value if hasattr(emp.role, "value") else str(emp.role),
+        est_actif=emp.est_actif if hasattr(emp, "est_actif") else True,
         statut_rh=statut_rh
     )
 
 
 @router.get("/", response_model=List[UtilisateurResponse])
 def lister_employes(
+    statut: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: Utilisateur = Depends(require_any_role("RH", "ADMIN"))
 ):
-    employes = db.query(Utilisateur).options(joinedload(Utilisateur.contrats)).all()
+    query = db.query(Utilisateur).options(joinedload(Utilisateur.contrats))
+
+    if statut:
+        s_upper = statut.strip().upper()
+        if s_upper in ["ARCHIVES", "ARCHIVE", "INACTIFS", "INACTIF"]:
+            query = query.filter(Utilisateur.est_actif == False)
+        elif s_upper in ["TOUS", "ALL"]:
+            pass  # Tous les employés
+        elif s_upper in ["ACTIFS", "ACTIF"]:
+            query = query.filter(Utilisateur.est_actif == True)
+    else:
+        # Par défaut : seuls les employés actifs sont listés
+        query = query.filter(Utilisateur.est_actif == True)
+
+    employes = query.order_by(Utilisateur.nom.asc(), Utilisateur.prenom.asc()).all()
     return [to_response(emp) for emp in employes]
 
 
@@ -193,6 +209,83 @@ def modifier_employe(
     return to_response(employe)
 
 
+@router.post("/{employe_id}/archive", response_model=UtilisateurResponse)
+def archiver_employe(
+    employe_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(require_any_role("RH", "ADMIN"))
+):
+    """Archiver logiquement un employé (le marque inactif sans supprimer ses données)."""
+    employe = db.query(Utilisateur).options(joinedload(Utilisateur.contrats)).filter(Utilisateur.id == employe_id).first()
+    if not employe:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employé non trouvé")
+
+    # Protection : Ne pas s'archiver soi-même
+    if employe.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Vous ne pouvez pas archiver votre propre compte."
+        )
+
+    nom_complet = f"{employe.prenom} {employe.nom}"
+    matricule = employe.matricule
+
+    employe.est_actif = False
+    # Révoquer les refresh tokens pour couper les sessions actives de cet utilisateur
+    revoke_all_user_refresh_tokens(employe.id, db)
+    db.commit()
+    db.refresh(employe)
+
+    log_action(
+        db=db,
+        utilisateur_id=current_user.id,
+        action=AuditActionEnum.ARCHIVE.value,
+        entite=AuditEntiteEnum.EMPLOYE.value,
+        entite_id=employe_id,
+        description=f"Archivage de l'employé {nom_complet} ({matricule})",
+        anciennes_valeurs={"est_actif": True},
+        nouvelles_valeurs={"est_actif": False},
+        request=request,
+    )
+
+    return to_response(employe)
+
+
+@router.post("/{employe_id}/restaurer", response_model=UtilisateurResponse)
+def restaurer_employe(
+    employe_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(require_any_role("RH", "ADMIN"))
+):
+    """Restaurer un employé archivé (le réactive)."""
+    employe = db.query(Utilisateur).options(joinedload(Utilisateur.contrats)).filter(Utilisateur.id == employe_id).first()
+    if not employe:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employé non trouvé")
+
+    nom_complet = f"{employe.prenom} {employe.nom}"
+    matricule = employe.matricule
+
+    employe.est_actif = True
+    db.commit()
+    db.refresh(employe)
+
+    log_action(
+        db=db,
+        utilisateur_id=current_user.id,
+        action=AuditActionEnum.RESTORE.value,
+        entite=AuditEntiteEnum.EMPLOYE.value,
+        entite_id=employe_id,
+        description=f"Restauration de l'employé {nom_complet} ({matricule})",
+        anciennes_valeurs={"est_actif": False},
+        nouvelles_valeurs={"est_actif": True},
+        request=request,
+    )
+
+    return to_response(employe)
+
+
 @router.delete("/{employe_id}", status_code=status.HTTP_204_NO_CONTENT)
 def supprimer_employe(
     employe_id: int,
@@ -200,23 +293,9 @@ def supprimer_employe(
     db: Session = Depends(get_db),
     current_user: Utilisateur = Depends(require_any_role("RH", "ADMIN"))
 ):
-    employe = db.query(Utilisateur).filter(Utilisateur.id == employe_id).first()
-    if not employe:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Employé non trouvé")
-
-    nom_complet = f"{employe.prenom} {employe.nom}"
-    matricule = employe.matricule
-
-    db.delete(employe)
-    db.commit()
-
-    log_action(
-        db=db,
-        utilisateur_id=current_user.id,
-        action=AuditActionEnum.DELETE.value,
-        entite=AuditEntiteEnum.EMPLOYE.value,
-        entite_id=employe_id,
-        description=f"Suppression de l'employé {nom_complet} ({matricule})",
-        request=request,
-    )
+    """
+    Remplacement de la suppression physique par un archivage logique réversible.
+    Les données de l'employé et ses contrats restent conservés.
+    """
+    archiver_employe(employe_id, request, db, current_user)
     return None

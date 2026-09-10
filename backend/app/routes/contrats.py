@@ -6,7 +6,7 @@ from typing import Optional, List
 from datetime import date, datetime
 
 from app.database import get_db
-from app.models.models import Contrat, Article, Utilisateur, AuditLog, TypeContratEnum, StatutContratEnum, AuditActionEnum, AuditEntiteEnum
+from app.models.models import Contrat, Article, Utilisateur, AuditLog, Notification, TypeContratEnum, StatutContratEnum, AuditActionEnum, AuditEntiteEnum
 from app.schemas.schemas import ContratCreate, ContratUpdate, ContratResponse, ContratHistoriqueStatutResponse
 from app.core.security import require_role, require_any_role, create_direct_access_token
 from app.core.document_generator import generer_contrat_word
@@ -57,10 +57,11 @@ def get_contrats(
     statut: Optional[str] = Query(None),
     employe_id: Optional[int] = Query(None),
     search: Optional[str] = Query(None),
+    archivage: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: Utilisateur = Depends(require_role("RH"))
 ):
-    """Lister tous les contrats avec filtres optionnels."""
+    """Lister tous les contrats avec filtres optionnels (archivage: ACTIFS, ARCHIVES, TOUS)."""
     query = db.query(Contrat).options(
         joinedload(Contrat.employe),
         joinedload(Contrat.articles)
@@ -69,6 +70,13 @@ def get_contrats(
     if statut:
         norm_statut = normaliser_statut(statut)
         query = query.filter((Contrat.statut == statut) | (Contrat.statut == norm_statut))
+    elif archivage == "ARCHIVES":
+        query = query.filter(Contrat.statut == StatutContratEnum.INACTIF.value)
+    elif archivage == "TOUS":
+        pass  # Ne pas filtrer par archivage
+    else:
+        # Par defaut ("ACTIFS"), masquer les contrats inactifs/archives
+        query = query.filter(Contrat.statut != StatutContratEnum.INACTIF.value)
 
     if employe_id:
         query = query.filter(Contrat.employe_id == employe_id)
@@ -710,6 +718,168 @@ def generer_word_contrat(
     )
 
 
+@router.post("/{contrat_id}/archive", response_model=ContratResponse)
+def archiver_contrat(
+    contrat_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(require_role("RH"))
+):
+    """
+    Archiver logiquement un contrat (statut INACTIF).
+    Ne supprime aucune donnee physique, conserve les articles et l'historique d'audit.
+    Supprime les alertes associees au contrat pour ne plus generer d'emails ou notifications.
+    """
+    contrat = db.query(Contrat).options(
+        joinedload(Contrat.employe),
+        joinedload(Contrat.articles)
+    ).filter(Contrat.id == contrat_id).first()
+
+    if not contrat:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contrat non trouvé")
+
+    ancien_statut = contrat.statut
+
+    # Deja archive
+    if contrat.statut == StatutContratEnum.INACTIF.value:
+        return contrat
+
+    contrat.statut = StatutContratEnum.INACTIF.value
+    db.commit()
+    db.refresh(contrat)
+
+    # Nettoyer les alertes existantes liees a ce contrat
+    try:
+        db.query(Notification).filter(
+            Notification.entite == AuditEntiteEnum.CONTRAT.value,
+            Notification.entite_id == contrat.id
+        ).delete()
+        db.commit()
+    except Exception as e:
+        print(f"[contrats] Echec du nettoyage des alertes pour le contrat {contrat.id} : {e}")
+
+    # Enregistrer l'action ARCHIVE dans l'audit
+    log_action(
+        db=db,
+        utilisateur_id=current_user.id,
+        action=AuditActionEnum.ARCHIVE.value,
+        entite=AuditEntiteEnum.CONTRAT.value,
+        entite_id=contrat.id,
+        description=f"Archivage du contrat {contrat.reference} (Statut précédent: {ancien_statut})",
+        anciennes_valeurs={"statut": ancien_statut},
+        nouvelles_valeurs={"statut": contrat.statut},
+        request=request,
+    )
+
+    # Enregistrer egalement le STATUS_CHANGE pour l'historique des statuts
+    log_action(
+        db=db,
+        utilisateur_id=current_user.id,
+        action=AuditActionEnum.STATUS_CHANGE.value,
+        entite=AuditEntiteEnum.CONTRAT.value,
+        entite_id=contrat.id,
+        description=f"Contrat {contrat.reference} : {ancien_statut} → {contrat.statut}",
+        anciennes_valeurs={"statut": ancien_statut},
+        nouvelles_valeurs={"statut": contrat.statut},
+        request=request,
+    )
+
+    _rafraichir_alertes(db)
+    return contrat
+
+
+@router.post("/{contrat_id}/restaurer", response_model=ContratResponse)
+def restaurer_contrat(
+    contrat_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: Utilisateur = Depends(require_role("RH"))
+):
+    """
+    Restaurer un contrat archive (INACTIF) vers un statut coherent.
+    Regle metier stricte :
+    - Determine le statut precedant l'archivage via l'historique d'audit.
+    - Si le contrat etait ACTIF mais que sa date de fin est depassee (CDD/Stage/etc.),
+      il est restaure au statut FIN_CDD (ne pas restaurer automatiquement un contrat expire comme ACTIF).
+    - Sinon, le contrat est restaure dans son statut anterieur (ex: BROUILLON, SIGNE, ACTIF, FIN_CDD, DEMISSION_CDI).
+    """
+    contrat = db.query(Contrat).options(
+        joinedload(Contrat.employe),
+        joinedload(Contrat.articles)
+    ).filter(Contrat.id == contrat_id).first()
+
+    if not contrat:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contrat non trouvé")
+
+    if contrat.statut != StatutContratEnum.INACTIF.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Le contrat {contrat.reference} n'est pas archivé (statut actuel: {contrat.statut})."
+        )
+
+    # Rechercher le statut precedent dans l'audit
+    last_archive_log = (
+        db.query(AuditLog)
+        .filter(
+            AuditLog.entite == AuditEntiteEnum.CONTRAT.value,
+            AuditLog.entite_id == contrat.id,
+            AuditLog.action.in_([AuditActionEnum.ARCHIVE.value, AuditActionEnum.STATUS_CHANGE.value])
+        )
+        .order_by(AuditLog.date_action.desc())
+        .first()
+    )
+
+    statut_cible = None
+    if last_archive_log and last_archive_log.anciennes_valeurs and "statut" in last_archive_log.anciennes_valeurs:
+        candidat = last_archive_log.anciennes_valeurs["statut"]
+        if candidat and candidat != StatutContratEnum.INACTIF.value:
+            statut_cible = normaliser_statut(candidat)
+
+    if not statut_cible:
+        # Si aucun historique trouve : si contrat avec date_fin echue -> FIN_CDD, sinon BROUILLON
+        if contrat.type_contrat != TypeContratEnum.CDI.value and contrat.date_fin and contrat.date_fin < date.today():
+            statut_cible = StatutContratEnum.FIN_CDD.value
+        else:
+            statut_cible = StatutContratEnum.BROUILLON.value
+
+    # Regle metier : Ne pas restaurer un contrat expire en tant qu'ACTIF
+    if statut_cible == StatutContratEnum.ACTIF.value:
+        if contrat.type_contrat != TypeContratEnum.CDI.value and contrat.date_fin and contrat.date_fin < date.today():
+            statut_cible = StatutContratEnum.FIN_CDD.value
+
+    ancien_statut = contrat.statut
+    contrat.statut = statut_cible
+    db.commit()
+    db.refresh(contrat)
+
+    log_action(
+        db=db,
+        utilisateur_id=current_user.id,
+        action=AuditActionEnum.RESTORE.value,
+        entite=AuditEntiteEnum.CONTRAT.value,
+        entite_id=contrat.id,
+        description=f"Restauration du contrat {contrat.reference} vers le statut '{contrat.statut}'",
+        anciennes_valeurs={"statut": ancien_statut},
+        nouvelles_valeurs={"statut": contrat.statut},
+        request=request,
+    )
+
+    log_action(
+        db=db,
+        utilisateur_id=current_user.id,
+        action=AuditActionEnum.STATUS_CHANGE.value,
+        entite=AuditEntiteEnum.CONTRAT.value,
+        entite_id=contrat.id,
+        description=f"Contrat {contrat.reference} : {ancien_statut} → {contrat.statut}",
+        anciennes_valeurs={"statut": ancien_statut},
+        nouvelles_valeurs={"statut": contrat.statut},
+        request=request,
+    )
+
+    _rafraichir_alertes(db)
+    return contrat
+
+
 @router.delete("/{contrat_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_contrat(
     contrat_id: int,
@@ -717,23 +887,9 @@ def delete_contrat(
     db: Session = Depends(get_db),
     current_user: Utilisateur = Depends(require_role("RH"))
 ):
-    """Supprimer un contrat."""
-    contrat = db.query(Contrat).filter(Contrat.id == contrat_id).first()
-    if not contrat:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contrat non trouvé")
-
-    reference, contrat_id_captured = contrat.reference, contrat.id
-
-    db.delete(contrat)
-    db.commit()
-
-    log_action(
-        db=db,
-        utilisateur_id=current_user.id,
-        action=AuditActionEnum.DELETE.value,
-        entite=AuditEntiteEnum.CONTRAT.value,
-        entite_id=contrat_id_captured,
-        description=f"Suppression du contrat {reference}",
-        request=request,
-    )
+    """
+    Remplacement de la suppression definitive par un archivage logique.
+    Ne supprime aucune ligne physique en base pour preserver les donnees et l'audit.
+    """
+    archiver_contrat(contrat_id=contrat_id, request=request, db=db, current_user=current_user)
     return None

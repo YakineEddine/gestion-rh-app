@@ -3,7 +3,8 @@ import {
   History, Search, RotateCcw, ChevronLeft, ChevronRight, X,
   User, Calendar, Tag, Layers, FileText as FileTextIcon,
   LogIn, LogOut, PlusCircle, Edit2, Trash2, ToggleRight, ToggleLeft,
-  Download, FileCog, ArrowRightLeft, ShieldAlert, Activity, Mail, Bell, Sparkles
+  Download, FileCog, ArrowRightLeft, ShieldAlert, Activity, Mail, Bell, Sparkles,
+  Archive, ArchiveRestore
 } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
@@ -11,7 +12,7 @@ import api from '../services/api';
 import './AuditLogs.css';
 
 const ACTIONS = [
-  'CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGIN_FAILED', 'LOGOUT',
+  'CREATE', 'UPDATE', 'DELETE', 'ARCHIVE', 'RESTORE', 'LOGIN', 'LOGIN_FAILED', 'LOGOUT',
   'ACTIVATE', 'DEACTIVATE', 'DOWNLOAD', 'GENERATE', 'STATUS_CHANGE',
   'ALERT_GENERATED', 'EMAIL_SENT', 'AI_GENERATE'
 ];
@@ -21,6 +22,8 @@ const ACTION_CONFIG = {
   CREATE:          { label: 'Création',          icon: PlusCircle,     cls: 'create' },
   UPDATE:          { label: 'Modification',      icon: Edit2,          cls: 'update' },
   DELETE:          { label: 'Suppression',       icon: Trash2,         cls: 'delete' },
+  ARCHIVE:         { label: 'Archivage',         icon: Archive,        cls: 'archive' },
+  RESTORE:         { label: 'Restauration',      icon: ArchiveRestore, cls: 'restore' },
   LOGIN:           { label: 'Connexion',         icon: LogIn,          cls: 'login' },
   LOGIN_FAILED:    { label: 'Échec connexion',   icon: ShieldAlert,    cls: 'login-failed' },
   LOGOUT:          { label: 'Déconnexion',       icon: LogOut,         cls: 'logout' },

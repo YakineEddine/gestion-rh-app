@@ -187,6 +187,8 @@
 .audit-action-badge.audit-create        { background-color: #dcfce7; color: #15803d; }
 .audit-action-badge.audit-update        { background-color: #dbeafe; color: #1d4ed8; }
 .audit-action-badge.audit-delete        { background-color: #fee2e2; color: #b91c1c; }
+.audit-action-badge.audit-archive       { background-color: #ffedd5; color: #ea580c; }
+.audit-action-badge.audit-restore       { background-color: #dcfce7; color: #15803d; }
 .audit-action-badge.audit-login         { background-color: #f3e8ff; color: #7c3aed; }
 .audit-action-badge.audit-login-failed  { background-color: #fecaca; color: #991b1b; }
 .audit-action-badge.audit-logout        { background-color: #f1f5f9; color: #475569; }
