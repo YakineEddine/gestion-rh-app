@@ -28,21 +28,25 @@ def build_front_matter(doc):
     cell_esprit = logo_table.cell(0, 0)
     cell_esprit.width = Inches(3.2)
     set_cell_margins(cell_esprit, top=50, bottom=50, left=50, right=50)
-    # Cadre élégant pour l'emplacement logo ESPRIT
-    set_cell_borders(cell_esprit, top="single", bottom="single", left="single", right="single", color="A0AEC0", sz="6")
-    set_cell_background(cell_esprit, "F7FAFC")
     p_esp = cell_esprit.paragraphs[0]
-    p_esp.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r_esp_title = p_esp.add_run("ÉCOLE SUPÉRIEURE PRIVÉE\nD'INGÉNIERIE ET DE TECHNOLOGIE\n")
-    r_esp_title.font.name = "Calibri"
-    r_esp_title.font.bold = True
-    r_esp_title.font.size = Pt(8.5)
-    r_esp_title.font.color.rgb = COLOR_PRIMARY
-    r_esp_box = p_esp.add_run("[ Emplacement Logo Officiel ESPRIT ]")
-    r_esp_box.font.name = "Calibri"
-    r_esp_box.font.italic = True
-    r_esp_box.font.size = Pt(8)
-    r_esp_box.font.color.rgb = COLOR_MUTED
+    p_esp.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    esprit_logo_path = os.path.join(ASSETS_DIR, "logo_esprit.png")
+    if os.path.exists(esprit_logo_path):
+        r_esp = p_esp.add_run()
+        r_esp.add_picture(esprit_logo_path, width=Inches(1.8))
+    else:
+        set_cell_borders(cell_esprit, top="single", bottom="single", left="single", right="single", color="A0AEC0", sz="6")
+        set_cell_background(cell_esprit, "F7FAFC")
+        r_esp_title = p_esp.add_run("ÉCOLE SUPÉRIEURE PRIVÉE\nD'INGÉNIERIE ET DE TECHNOLOGIE\n")
+        r_esp_title.font.name = "Calibri"
+        r_esp_title.font.bold = True
+        r_esp_title.font.size = Pt(8.5)
+        r_esp_title.font.color.rgb = COLOR_PRIMARY
+        r_esp_box = p_esp.add_run("[ Emplacement Logo Officiel ESPRIT ]")
+        r_esp_box.font.name = "Calibri"
+        r_esp_box.font.italic = True
+        r_esp_box.font.size = Pt(8)
+        r_esp_box.font.color.rgb = COLOR_MUTED
 
     cell_csi = logo_table.cell(0, 1)
     cell_csi.width = Inches(3.2)
