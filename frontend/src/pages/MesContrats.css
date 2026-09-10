@@ -166,13 +166,43 @@
 }
 
 .badge.status-brouillon {
-  background-color: rgba(245, 158, 11, 0.1);
-  color: var(--warning);
+  background-color: rgba(100, 116, 139, 0.1);
+  color: #64748b;
+}
+
+.badge.status-communique {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+}
+
+.badge.status-signe {
+  background-color: rgba(13, 148, 136, 0.1);
+  color: #0d9488;
 }
 
 .badge.status-actif {
   background-color: rgba(16, 185, 129, 0.1);
   color: var(--success);
+}
+
+.badge.status-fin-cdd {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #d97706;
+}
+
+.badge.status-demission {
+  background-color: rgba(219, 39, 119, 0.1);
+  color: #be185d;
+}
+
+.badge.status-pas-discute {
+  background-color: rgba(234, 179, 8, 0.1);
+  color: #a16207;
+}
+
+.badge.status-inactif {
+  background-color: rgba(100, 116, 139, 0.1);
+  color: #64748b;
 }
 
 .badge.status-termine {

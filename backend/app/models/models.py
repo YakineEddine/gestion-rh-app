@@ -18,6 +18,18 @@ class TypeContratEnum(str, enum.Enum):
     ALTERNANCE = "ALTERNANCE"
 
 
+class StatutContratEnum(str, enum.Enum):
+    BROUILLON = "BROUILLON"
+    COMMUNIQUE_EN_COURS = "COMMUNIQUE_EN_COURS"
+    SIGNE = "SIGNE"
+    ACTIF = "ACTIF"
+    FIN_CDD = "FIN_CDD"
+    DEMISSION_CDI = "DEMISSION_CDI"
+    PAS_DISCUTE = "PAS_DISCUTE"
+    INACTIF = "INACTIF"
+
+
+
 class AuditActionEnum(str, enum.Enum):
     CREATE = "CREATE"
     UPDATE = "UPDATE"
@@ -104,7 +116,7 @@ class Contrat(Base):
     date_debut = Column(Date, nullable=False)
     date_fin = Column(Date, nullable=True)
     salaire_mensuel = Column(Integer, nullable=False)
-    statut = Column(String, default="Brouillon")
+    statut = Column(String, default=StatutContratEnum.BROUILLON.value)
     document_path = Column(String, nullable=True)
 
     employe_id = Column(Integer, ForeignKey("utilisateurs.id"))

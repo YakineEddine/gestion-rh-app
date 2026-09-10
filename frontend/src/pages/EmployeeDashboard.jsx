@@ -4,6 +4,40 @@ import EmployeeSidebar from '../components/EmployeeSidebar';
 import Header from '../components/Header';
 import './EmployeeDashboard.css';
 
+const STATUT_LABELS = {
+  'BROUILLON':          'Brouillon',
+  'COMMUNIQUE_EN_COURS': 'Communiqué (en cours)',
+  'SIGNE':              'Signé',
+  'ACTIF':              'Actif',
+  'FIN_CDD':            'Fin CDD',
+  'DEMISSION_CDI':      'Démission (CDI)',
+  'PAS_DISCUTE':        'Pas discuté',
+  'INACTIF':            'Inactif (archivé)',
+  'Brouillon':          'Brouillon',
+  'Actif':              'Actif',
+  'Suspendu':           'Inactif (archivé)',
+  'Terminé':            'Inactif (archivé)',
+  'Expiré':             'Fin CDD',
+};
+
+function getStatutClass(statut) {
+  const map = {
+    'BROUILLON':           'status-brouillon',
+    'COMMUNIQUE_EN_COURS': 'status-communique',
+    'SIGNE':               'status-signe',
+    'ACTIF':               'status-actif',
+    'FIN_CDD':             'status-fin-cdd',
+    'DEMISSION_CDI':       'status-demission',
+    'PAS_DISCUTE':         'status-pas-discute',
+    'INACTIF':             'status-inactif',
+    'Brouillon':           'status-brouillon',
+    'Actif':               'status-actif',
+    'Suspendu':            'status-inactif',
+    'Terminé':             'status-inactif',
+  };
+  return map[statut] || 'status-brouillon';
+}
+
 export default function EmployeeDashboard() {
   const [profil, setProfil] = useState(null);
   const [contrats, setContrats] = useState([]);
@@ -141,8 +175,8 @@ export default function EmployeeDashboard() {
                       <td>{new Date(c.date_debut).toLocaleDateString('fr-FR')}</td>
                       <td>{c.date_fin ? new Date(c.date_fin).toLocaleDateString('fr-FR') : 'Indefini'}</td>
                       <td>
-                        <span className={`badge status-${c.statut.toLowerCase().replace(/\s/g, '-')}`}>
-                          {c.statut}
+                        <span className={`badge ${getStatutClass(c.statut)}`}>
+                          {STATUT_LABELS[c.statut] || c.statut}
                         </span>
                       </td>
                     </tr>

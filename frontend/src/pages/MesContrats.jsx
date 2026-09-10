@@ -5,6 +5,40 @@ import EmployeeSidebar from '../components/EmployeeSidebar';
 import Header from '../components/Header';
 import './MesContrats.css';
 
+const STATUT_LABELS = {
+  'BROUILLON':          'Brouillon',
+  'COMMUNIQUE_EN_COURS': 'Communiqué (en cours)',
+  'SIGNE':              'Signé',
+  'ACTIF':              'Actif',
+  'FIN_CDD':            'Fin CDD',
+  'DEMISSION_CDI':      'Démission (CDI)',
+  'PAS_DISCUTE':        'Pas discuté',
+  'INACTIF':            'Inactif (archivé)',
+  'Brouillon':          'Brouillon',
+  'Actif':              'Actif',
+  'Suspendu':           'Inactif (archivé)',
+  'Terminé':            'Inactif (archivé)',
+  'Expiré':             'Fin CDD',
+};
+
+function getStatutClass(statut) {
+  const map = {
+    'BROUILLON':           'status-brouillon',
+    'COMMUNIQUE_EN_COURS': 'status-communique',
+    'SIGNE':               'status-signe',
+    'ACTIF':               'status-actif',
+    'FIN_CDD':             'status-fin-cdd',
+    'DEMISSION_CDI':       'status-demission',
+    'PAS_DISCUTE':         'status-pas-discute',
+    'INACTIF':             'status-inactif',
+    'Brouillon':           'status-brouillon',
+    'Actif':               'status-actif',
+    'Suspendu':            'status-inactif',
+    'Terminé':             'status-inactif',
+  };
+  return map[statut] || 'status-brouillon';
+}
+
 export default function MesContrats() {
   const [contrats, setContrats] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -19,7 +53,7 @@ export default function MesContrats() {
         const res = await api.get('/mon-espace/contrats');
         // Securite defensive cote frontend : les contrats BROUILLON ne doivent
         // jamais etre affiches a l'employe (le backend les exclut deja).
-        setContrats((res.data || []).filter(c => c.statut !== 'Brouillon'));
+        setContrats((res.data || []).filter(c => !['BROUILLON', 'Brouillon'].includes(c.statut)));
       } catch (err) {
         console.error(err);
       } finally {
@@ -102,10 +136,10 @@ export default function MesContrats() {
                         </p>
                       </div>
                       <div className="contrat-card-header-actions">
-                        <span className={`contrat-status badge status-${c.statut.toLowerCase().replace(/\s/g, '-')}`}>
-                          {c.statut}
+                        <span className={`contrat-status badge ${getStatutClass(c.statut)}`}>
+                          {STATUT_LABELS[c.statut] || c.statut}
                         </span>
-                        {c.statut !== 'Brouillon' && (
+                        {!['BROUILLON', 'Brouillon'].includes(c.statut) && (
                           <button
                             className="contrat-download-btn"
                             onClick={(e) => handleDownload(e, c.id, c.reference)}

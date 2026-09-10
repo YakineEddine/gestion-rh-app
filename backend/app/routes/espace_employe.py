@@ -89,7 +89,7 @@ def get_mes_contrats(
         joinedload(Contrat.articles)
     ).filter(
         Contrat.employe_id == current_user.id,
-        Contrat.statut != "Brouillon"
+        Contrat.statut.notin_(["BROUILLON", "Brouillon"])
     ).order_by(Contrat.date_creation.desc()).all()
     return contrats
 
@@ -119,7 +119,7 @@ def telecharger_mon_contrat(
 
     # Regle metier : un contrat BROUILLON n'est jamais telechargeable par l'employe,
     # meme s'il en connait l'ID.
-    if contrat.statut == "Brouillon":
+    if contrat.statut in ["BROUILLON", "Brouillon"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Ce contrat n'est pas encore disponible."

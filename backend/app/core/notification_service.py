@@ -27,6 +27,8 @@ from app.models.models import (
     NotificationPrioriteEnum,
     NotificationTypeEnum,
     RoleEnum,
+    StatutContratEnum,
+    TypeContratEnum,
     Utilisateur,
 )
 from app.core.audit_service import log_action
@@ -133,10 +135,16 @@ def verifier_alertes_contrats(db: Session) -> int:
     total_creees = 0
 
     # ─── Contrats avec date de fin (CDD / STAGE / ALTERNANCE uniquement :
-    #     un CDI n'a jamais de date_fin, il est donc naturellement exclu) ───
+    #     un CDI n'a jamais de date_fin, il est donc naturellement exclu).
+    #     Exclut également les contrats INACTIFS, FIN_CDD, DEMISSION_CDI. ───
+    statuts_exclus = [
+        "INACTIF", "FIN_CDD", "DEMISSION_CDI",
+        "Terminé", "Termine", "Expiré", "Expire", "Inactif"
+    ]
     contrats_a_echeance = db.query(Contrat).filter(
         Contrat.date_fin.isnot(None),
-        Contrat.statut != "Terminé",
+        Contrat.type_contrat != TypeContratEnum.CDI.value,
+        Contrat.statut.notin_(statuts_exclus),
     ).all()
 
     for contrat in contrats_a_echeance:
@@ -144,7 +152,7 @@ def verifier_alertes_contrats(db: Session) -> int:
 
         # Employé lié au contrat (pour alertes personnelles employé)
         employe_user = None
-        if contrat.employe_id and contrat.statut != "Brouillon":
+        if contrat.employe_id and contrat.statut not in ["BROUILLON", "Brouillon"]:
             employe_user = db.query(Utilisateur).filter(Utilisateur.id == contrat.employe_id).first()
 
         if jours_restants < 0:
@@ -400,7 +408,7 @@ def verifier_alertes_contrats(db: Session) -> int:
                     )
 
     # ─── Contrats restes en "Brouillon" depuis trop longtemps ───
-    contrats_brouillon = db.query(Contrat).filter(Contrat.statut == "Brouillon").all()
+    contrats_brouillon = db.query(Contrat).filter(Contrat.statut.in_(["BROUILLON", "Brouillon"])).all()
     for contrat in contrats_brouillon:
         age_jours = (aujourdhui - contrat.date_creation).days
         if age_jours >= SEUIL_BROUILLON_JOURS:

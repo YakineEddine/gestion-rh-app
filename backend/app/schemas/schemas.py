@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional, List
 from datetime import date, datetime
 
-from app.models.models import TypeContratEnum
+from app.models.models import TypeContratEnum, StatutContratEnum
 
 
 # ===== SCHÉMAS AUTHENTIFICATION =====
@@ -136,6 +136,7 @@ class ContratCreate(BaseModel):
     date_fin: Optional[date] = None
     salaire_mensuel: int
     employe_id: int
+    statut: Optional[str] = StatutContratEnum.BROUILLON.value
     article_ids: Optional[List[int]] = []
 
     @model_validator(mode="after")

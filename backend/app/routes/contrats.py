@@ -6,7 +6,7 @@ from typing import Optional, List
 from datetime import date
 
 from app.database import get_db
-from app.models.models import Contrat, Article, Utilisateur, TypeContratEnum, AuditActionEnum, AuditEntiteEnum
+from app.models.models import Contrat, Article, Utilisateur, TypeContratEnum, StatutContratEnum, AuditActionEnum, AuditEntiteEnum
 from app.schemas.schemas import ContratCreate, ContratUpdate, ContratResponse
 from app.core.security import require_role, create_direct_access_token
 from app.core.document_generator import generer_contrat_word
@@ -67,7 +67,8 @@ def get_contrats(
     )
 
     if statut:
-        query = query.filter(Contrat.statut == statut)
+        norm_statut = normaliser_statut(statut)
+        query = query.filter((Contrat.statut == statut) | (Contrat.statut == norm_statut))
 
     if employe_id:
         query = query.filter(Contrat.employe_id == employe_id)
@@ -121,6 +122,10 @@ def create_contrat(
     reference = generer_reference(db)
 
     # data.date_fin est deja normalisee a None pour un CDI par le schema ContratCreate
+    init_statut = StatutContratEnum.BROUILLON.value
+    if getattr(data, "statut", None):
+        init_statut = normaliser_statut(data.statut)
+
     contrat = Contrat(
         reference=reference,
         type_contrat=data.type_contrat.value,
@@ -128,7 +133,7 @@ def create_contrat(
         date_debut=data.date_debut,
         date_fin=data.date_fin,
         salaire_mensuel=data.salaire_mensuel,
-        statut="Brouillon",
+        statut=init_statut,
         employe_id=data.employe_id
     )
     db.add(contrat)
@@ -167,19 +172,105 @@ def create_contrat(
     return contrat
 
 
-# Transitions de statut autorisées selon les règles métier :
-# - Brouillon -> Actif
-# - Actif -> Suspendu, Terminé (retour à Brouillon STRICTEMENT INTERDIT)
-# - Suspendu -> Actif, Terminé (retour à Brouillon STRICTEMENT INTERDIT)
-# - Terminé -> Statut final, aucune transition sortante autorisée
-# - Expiré -> Statut final, aucune transition sortante autorisée
-TRANSITIONS_STATUT_AUTORISEES = {
-    "Brouillon": ["Brouillon", "Actif"],
-    "Actif": ["Actif", "Suspendu", "Terminé"],
-    "Suspendu": ["Suspendu", "Actif", "Terminé"],
-    "Terminé": ["Terminé"],
-    "Expiré": ["Expiré"],
+# Correspondance et normalisation des statuts
+STATUS_MAPPING = {
+    "BROUILLON": StatutContratEnum.BROUILLON.value,
+    "Brouillon": StatutContratEnum.BROUILLON.value,
+    "COMMUNIQUE_EN_COURS": StatutContratEnum.COMMUNIQUE_EN_COURS.value,
+    "Communiqué (en cours)": StatutContratEnum.COMMUNIQUE_EN_COURS.value,
+    "SIGNE": StatutContratEnum.SIGNE.value,
+    "Signé": StatutContratEnum.SIGNE.value,
+    "ACTIF": StatutContratEnum.ACTIF.value,
+    "Actif": StatutContratEnum.ACTIF.value,
+    "FIN_CDD": StatutContratEnum.FIN_CDD.value,
+    "Fin CDD": StatutContratEnum.FIN_CDD.value,
+    "DEMISSION_CDI": StatutContratEnum.DEMISSION_CDI.value,
+    "Démission (CDI)": StatutContratEnum.DEMISSION_CDI.value,
+    "PAS_DISCUTE": StatutContratEnum.PAS_DISCUTE.value,
+    "Pas discuté": StatutContratEnum.PAS_DISCUTE.value,
+    "INACTIF": StatutContratEnum.INACTIF.value,
+    "Inactif (archivé)": StatutContratEnum.INACTIF.value,
+    "Inactif": StatutContratEnum.INACTIF.value,
+    "Suspendu": StatutContratEnum.INACTIF.value,
+    "Terminé": StatutContratEnum.INACTIF.value,
+    "Termine": StatutContratEnum.INACTIF.value,
+    "Expiré": StatutContratEnum.FIN_CDD.value,
+    "Expire": StatutContratEnum.FIN_CDD.value,
 }
+
+
+def normaliser_statut(s: Optional[str]) -> str:
+    if not s:
+        return StatutContratEnum.BROUILLON.value
+    clean = str(s).strip()
+    return STATUS_MAPPING.get(clean, clean)
+
+
+def get_allowed_transitions(statut_actuel: str, type_contrat: str) -> List[str]:
+    """
+    Règles métier de transition de statut :
+    - BROUILLON -> COMMUNIQUE_EN_COURS, PAS_DISCUTE
+    - COMMUNIQUE_EN_COURS -> SIGNE
+    - SIGNE -> ACTIF
+    - ACTIF :
+        - CDD / STAGE / ALTERNANCE -> FIN_CDD
+        - CDI -> DEMISSION_CDI
+        - Retour vers BROUILLON strictement interdit
+    - FIN_CDD -> INACTIF
+    - DEMISSION_CDI -> INACTIF
+    - PAS_DISCUTE -> COMMUNIQUE_EN_COURS, INACTIF
+    - INACTIF -> Statut terminal archivé
+    """
+    statut = normaliser_statut(statut_actuel)
+    tc = type_contrat.upper() if type_contrat else "CDI"
+
+    if statut == StatutContratEnum.BROUILLON.value:
+        return [
+            StatutContratEnum.BROUILLON.value,
+            StatutContratEnum.COMMUNIQUE_EN_COURS.value,
+            StatutContratEnum.PAS_DISCUTE.value,
+        ]
+    elif statut == StatutContratEnum.COMMUNIQUE_EN_COURS.value:
+        return [
+            StatutContratEnum.COMMUNIQUE_EN_COURS.value,
+            StatutContratEnum.SIGNE.value,
+        ]
+    elif statut == StatutContratEnum.SIGNE.value:
+        return [
+            StatutContratEnum.SIGNE.value,
+            StatutContratEnum.ACTIF.value,
+        ]
+    elif statut == StatutContratEnum.ACTIF.value:
+        if tc == TypeContratEnum.CDI.value:
+            return [
+                StatutContratEnum.ACTIF.value,
+                StatutContratEnum.DEMISSION_CDI.value,
+            ]
+        else:
+            return [
+                StatutContratEnum.ACTIF.value,
+                StatutContratEnum.FIN_CDD.value,
+            ]
+    elif statut == StatutContratEnum.FIN_CDD.value:
+        return [
+            StatutContratEnum.FIN_CDD.value,
+            StatutContratEnum.INACTIF.value,
+        ]
+    elif statut == StatutContratEnum.DEMISSION_CDI.value:
+        return [
+            StatutContratEnum.DEMISSION_CDI.value,
+            StatutContratEnum.INACTIF.value,
+        ]
+    elif statut == StatutContratEnum.PAS_DISCUTE.value:
+        return [
+            StatutContratEnum.PAS_DISCUTE.value,
+            StatutContratEnum.COMMUNIQUE_EN_COURS.value,
+            StatutContratEnum.INACTIF.value,
+        ]
+    elif statut == StatutContratEnum.INACTIF.value:
+        return [StatutContratEnum.INACTIF.value]
+
+    return [statut]
 
 
 @router.put("/{contrat_id}", response_model=ContratResponse)
@@ -207,13 +298,36 @@ def update_contrat(
 
     # Validation stricte des transitions de statut
     if "statut" in update_data and update_data["statut"] is not None:
-        nouveau_statut = update_data["statut"]
-        statut_actuel = contrat.statut or "Brouillon"
-        autorises = TRANSITIONS_STATUT_AUTORISEES.get(statut_actuel, [statut_actuel])
-        if nouveau_statut not in autorises:
+        nouveau_statut = normaliser_statut(update_data["statut"])
+        statut_actuel = normaliser_statut(contrat.statut or StatutContratEnum.BROUILLON.value)
+
+        # Déterminer le type de contrat effectif (après éventuel update)
+        tc_final = contrat.type_contrat
+        if "type_contrat" in update_data and update_data["type_contrat"] is not None:
+            tc = update_data["type_contrat"]
+            tc_final = tc.value if hasattr(tc, "value") else str(tc)
+
+        # Validation spécifique métier : incompatibilité type contrat
+        if nouveau_statut == StatutContratEnum.FIN_CDD.value and tc_final == TypeContratEnum.CDI.value:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Transition de statut non autorisée : impossible de passer de '{statut_actuel}' à '{nouveau_statut}'."
+                detail="Le statut 'Fin CDD' ne s'applique pas à un contrat de type CDI."
+            )
+        if nouveau_statut == StatutContratEnum.DEMISSION_CDI.value and tc_final != TypeContratEnum.CDI.value:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Le statut 'Démission (CDI)' ne s'applique pas à un contrat CDD, STAGE ou ALTERNANCE."
+            )
+
+        autorises = get_allowed_transitions(statut_actuel, tc_final)
+        if nouveau_statut not in autorises:
+            if statut_actuel == StatutContratEnum.ACTIF.value and nouveau_statut == StatutContratEnum.BROUILLON.value:
+                detail_msg = "Transition de statut non autorisée : impossible de repasser un contrat Actif en Brouillon."
+            else:
+                detail_msg = f"Transition de statut non autorisée : impossible de passer de '{statut_actuel}' à '{nouveau_statut}'."
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=detail_msg
             )
         contrat.statut = nouveau_statut
 
@@ -277,7 +391,12 @@ def update_contrat(
         )
 
         # Si le contrat devient Actif, informer l'employé par email
-        if apres["statut"] == "Actif" and contrat.employe and contrat.employe.email:
+        if (
+            apres["statut"] in [StatutContratEnum.ACTIF.value, "Actif"]
+            and avant["statut"] not in [StatutContratEnum.ACTIF.value, "Actif"]
+            and contrat.employe
+            and contrat.employe.email
+        ):
             direct_tok = create_direct_access_token(contrat.employe.id, contrat.employe.email)
             html = template_contract_activated(
                 prenom=contrat.employe.prenom,

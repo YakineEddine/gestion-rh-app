@@ -10,13 +10,79 @@ import Header from '../components/Header';
 import api from '../services/api';
 import './ContratForm.css';
 
-const ALLOWED_STATUS_TRANSITIONS = {
-  'Brouillon': ['Brouillon', 'Actif'],
-  'Actif':     ['Actif', 'Suspendu', 'Terminé'],
-  'Suspendu':  ['Suspendu', 'Actif', 'Terminé'],
-  'Terminé':   ['Terminé'],
-  'Expiré':    ['Expiré'],
+const STATUTS_CONFIG = {
+  BROUILLON:           { code: 'BROUILLON',           label: 'Brouillon' },
+  COMMUNIQUE_EN_COURS: { code: 'COMMUNIQUE_EN_COURS', label: 'Communiqué (en cours)' },
+  SIGNE:               { code: 'SIGNE',               label: 'Signé' },
+  ACTIF:               { code: 'ACTIF',               label: 'Actif' },
+  FIN_CDD:             { code: 'FIN_CDD',             label: 'Fin CDD' },
+  DEMISSION_CDI:       { code: 'DEMISSION_CDI',       label: 'Démission (CDI)' },
+  PAS_DISCUTE:         { code: 'PAS_DISCUTE',         label: 'Pas discuté' },
+  INACTIF:             { code: 'INACTIF',             label: 'Inactif (archivé)' },
 };
+
+function normaliseStatutCode(s) {
+  if (!s) return 'BROUILLON';
+  const val = String(s).trim();
+  const map = {
+    'BROUILLON': 'BROUILLON',
+    'Brouillon': 'BROUILLON',
+    'COMMUNIQUE_EN_COURS': 'COMMUNIQUE_EN_COURS',
+    'Communiqué (en cours)': 'COMMUNIQUE_EN_COURS',
+    'SIGNE': 'SIGNE',
+    'Signé': 'SIGNE',
+    'ACTIF': 'ACTIF',
+    'Actif': 'ACTIF',
+    'FIN_CDD': 'FIN_CDD',
+    'Fin CDD': 'FIN_CDD',
+    'DEMISSION_CDI': 'DEMISSION_CDI',
+    'Démission (CDI)': 'DEMISSION_CDI',
+    'PAS_DISCUTE': 'PAS_DISCUTE',
+    'Pas discuté': 'PAS_DISCUTE',
+    'INACTIF': 'INACTIF',
+    'Inactif (archivé)': 'INACTIF',
+    'Inactif': 'INACTIF',
+    'Suspendu': 'INACTIF',
+    'Terminé': 'INACTIF',
+    'Expiré': 'FIN_CDD',
+  };
+  return map[val] || val;
+}
+
+function getAvailableStatuts(statutActuel, typeContrat) {
+  const code = normaliseStatutCode(statutActuel);
+  const tc = (typeContrat || 'CDI').toUpperCase();
+
+  let nextCodes = [code];
+
+  if (code === 'BROUILLON') {
+    nextCodes = ['BROUILLON', 'COMMUNIQUE_EN_COURS', 'PAS_DISCUTE'];
+  } else if (code === 'COMMUNIQUE_EN_COURS') {
+    nextCodes = ['COMMUNIQUE_EN_COURS', 'SIGNE'];
+  } else if (code === 'SIGNE') {
+    nextCodes = ['SIGNE', 'ACTIF'];
+  } else if (code === 'ACTIF') {
+    if (tc === 'CDI') {
+      nextCodes = ['ACTIF', 'DEMISSION_CDI'];
+    } else {
+      nextCodes = ['ACTIF', 'FIN_CDD'];
+    }
+  } else if (code === 'FIN_CDD') {
+    nextCodes = ['FIN_CDD', 'INACTIF'];
+  } else if (code === 'DEMISSION_CDI') {
+    nextCodes = ['DEMISSION_CDI', 'INACTIF'];
+  } else if (code === 'PAS_DISCUTE') {
+    nextCodes = ['PAS_DISCUTE', 'COMMUNIQUE_EN_COURS', 'INACTIF'];
+  } else if (code === 'INACTIF') {
+    nextCodes = ['INACTIF'];
+  }
+
+  return nextCodes.map(c => ({
+    code: c,
+    label: STATUTS_CONFIG[c]?.label || c
+  }));
+}
+
 
 const TYPES_CONTRAT = ['CDI', 'CDD', 'STAGE', 'ALTERNANCE'];
 
@@ -95,8 +161,9 @@ export default function ContratForm() {
       setDateDebut(c.date_debut || '');
       setDateFin(c.date_fin || '');
       setSalaire(String(c.salaire_mensuel || ''));
-      setStatut(c.statut || 'Brouillon');
-      setInitialStatut(c.statut || 'Brouillon');
+      const sCode = normaliseStatutCode(c.statut);
+      setStatut(sCode);
+      setInitialStatut(sCode);
       setSelectedArticleIds((c.articles || []).map(a => a.id));
       if (c.employe) setSelectedEmploye(c.employe);
     } catch {
@@ -396,7 +463,7 @@ export default function ContratForm() {
                   </div>
 
                   {isEdit && (() => {
-                    const availableStatuts = ALLOWED_STATUS_TRANSITIONS[initialStatut] || [statut];
+                    const availableStatuts = getAvailableStatuts(initialStatut, typeContrat);
                     const isFinal = availableStatuts.length <= 1;
                     return (
                       <div className="cf-form-group">
@@ -407,7 +474,11 @@ export default function ContratForm() {
                           className="cf-input"
                           disabled={isFinal}
                         >
-                          {availableStatuts.map(s => <option key={s} value={s}>{s}</option>)}
+                          {availableStatuts.map(s => (
+                            <option key={s.code} value={s.code}>
+                              {s.label}
+                            </option>
+                          ))}
                         </select>
                         {isFinal && (
                           <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>

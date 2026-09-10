@@ -9,16 +9,57 @@ import Header from '../components/Header';
 import api from '../services/api';
 import './ContratsList.css';
 
-const STATUTS = ['Tous', 'Brouillon', 'Actif', 'Suspendu', 'Terminé'];
+const STATUTS_FILTER = [
+  { code: 'Tous',               label: 'Tous' },
+  { code: 'BROUILLON',          label: 'Brouillon' },
+  { code: 'COMMUNIQUE_EN_COURS',label: 'Communiqué (en cours)' },
+  { code: 'SIGNE',              label: 'Signé' },
+  { code: 'ACTIF',              label: 'Actif' },
+  { code: 'FIN_CDD',            label: 'Fin CDD' },
+  { code: 'DEMISSION_CDI',      label: 'Démission (CDI)' },
+  { code: 'PAS_DISCUTE',        label: 'Pas discuté' },
+  { code: 'INACTIF',            label: 'Inactif (archivé)' },
+];
+
+const STATUT_LABELS = {
+  'BROUILLON': 'Brouillon',
+  'COMMUNIQUE_EN_COURS': 'Communiqué (en cours)',
+  'SIGNE': 'Signé',
+  'ACTIF': 'Actif',
+  'FIN_CDD': 'Fin CDD',
+  'DEMISSION_CDI': 'Démission (CDI)',
+  'PAS_DISCUTE': 'Pas discuté',
+  'INACTIF': 'Inactif (archivé)',
+  // Rétrocompatibilité anciens statuts
+  'Brouillon': 'Brouillon',
+  'Actif': 'Actif',
+  'Suspendu': 'Inactif (archivé)',
+  'Terminé': 'Inactif (archivé)',
+  'Expiré': 'Fin CDD',
+};
 
 function getStatutClass(statut) {
   const map = {
+    'BROUILLON':           'statut-brouillon',
+    'COMMUNIQUE_EN_COURS': 'statut-communique',
+    'SIGNE':               'statut-signe',
+    'ACTIF':               'statut-actif',
+    'FIN_CDD':             'statut-fin-cdd',
+    'DEMISSION_CDI':       'statut-demission',
+    'PAS_DISCUTE':         'statut-pas-discute',
+    'INACTIF':             'statut-inactif',
+    // Rétrocompatibilité
     'Brouillon': 'statut-brouillon',
     'Actif':     'statut-actif',
-    'Suspendu':  'statut-suspendu',
-    'Terminé':   'statut-termine',
+    'Suspendu':  'statut-inactif',
+    'Terminé':   'statut-inactif',
+    'Expiré':    'statut-fin-cdd',
   };
   return map[statut] || 'statut-brouillon';
+}
+
+function getStatutLabel(statut) {
+  return STATUT_LABELS[statut] || statut;
 }
 
 function formatDate(d) {
@@ -63,7 +104,7 @@ export default function ContratsList() {
   const filtered = contrats.filter(c => {
     const fullText = `${c.reference} ${c.employe?.nom || ''} ${c.employe?.prenom || ''} ${c.employe?.matricule || ''}`.toLowerCase();
     const matchSearch = fullText.includes(searchTerm.toLowerCase());
-    const matchStatut = filterStatut === 'Tous' || c.statut === filterStatut;
+    const matchStatut = filterStatut === 'Tous' || c.statut === filterStatut || (filterStatut === 'INACTIF' && ['Suspendu', 'Terminé'].includes(c.statut));
     return matchSearch && matchStatut;
   });
 
@@ -103,10 +144,10 @@ export default function ContratsList() {
   };
 
   // Stats
-  const totalActifs   = contrats.filter(c => c.statut === 'Actif').length;
-  const totalBrouillons = contrats.filter(c => c.statut === 'Brouillon').length;
+  const totalActifs   = contrats.filter(c => ['ACTIF', 'Actif'].includes(c.statut)).length;
+  const totalBrouillons = contrats.filter(c => ['BROUILLON', 'Brouillon'].includes(c.statut)).length;
   const totalExpires  = contrats.filter(c =>
-    c.date_fin && new Date(c.date_fin) < today && c.statut !== 'Terminé'
+    c.date_fin && new Date(c.date_fin) < today && !['INACTIF', 'Inactif', 'FIN_CDD', 'DEMISSION_CDI', 'Terminé', 'Expiré'].includes(c.statut)
   ).length;
 
   // Pagination
@@ -208,7 +249,11 @@ export default function ContratsList() {
                   onChange={e => setFilterStatut(e.target.value)}
                   className="contrats-filter-select"
                 >
-                  {STATUTS.map(s => <option key={s}>{s}</option>)}
+                  {STATUTS_FILTER.map(s => (
+                    <option key={s.code} value={s.code}>
+                      {s.label}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="contrats-filter-actions">
@@ -283,7 +328,7 @@ export default function ContratsList() {
                         </td>
                         <td>
                           <span className={`contrat-statut-badge ${getStatutClass(c.statut)}`}>
-                            {c.statut}
+                            {getStatutLabel(c.statut)}
                           </span>
                         </td>
                         <td>
