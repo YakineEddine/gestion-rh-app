@@ -216,6 +216,16 @@
   border-radius: var(--radius-sm);
 }
 
+/* Masquer le message rouge "This reCAPTCHA is for testing purposes only" */
+.recaptcha-wrapper [style*="color: red"],
+.recaptcha-wrapper [style*="color:red"],
+.recaptcha-wrapper [style*="border: 1px solid"] {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}
+
 .login-submit-btn {
   background-color: var(--primary);
   color: white;
